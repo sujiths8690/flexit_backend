@@ -19,9 +19,11 @@
     "client:fix": "cd client && npm run fix"
   },
   "devDependencies": {
+    "@types/nodemailer": "^7.0.5",
     "concurrently": "^8.2.0"
   },
   "dependencies": {
+    "nodemailer": "^7.0.12",
     "package.json": "^2.0.1"
   }
 }
