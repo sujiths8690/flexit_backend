@@ -1,0 +1,21 @@
+  generator client {
+    provider      = "prisma-client-js"
+    binaryTargets = ["native", "debian-openssl-3.0.x"]
+  }
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model UserActivity {
+  id              Int      @id @default(autoincrement())
+
+  userId          Int
+  businessId      Int
+
+  action          String
+  description     String?
+
+  createdAt       DateTime @default(now())
+}

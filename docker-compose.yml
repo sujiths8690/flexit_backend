@@ -1,0 +1,59 @@
+
+services:
+
+  db:
+    image: mysql:8
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: Adithya8@
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  gateway:
+    build: ./server/gateway
+    ports:
+      - "3000:3000"
+    depends_on:
+      - auth
+      - content
+      - user-activity
+
+  auth:
+    build: ./server/auth
+    ports:
+      - "3001:3001"
+    env_file:
+      - ./server/auth/.env
+    depends_on:
+      - db
+
+  content:
+    build: ./server/content
+    ports:
+      - "3002:3002"
+    env_file:
+      - ./server/content/.env
+    depends_on:
+      - db
+
+  realtime:
+    build: ./server/realtime
+    ports:
+      - "3003:3003"
+    env_file:
+      - ./server/realtime/.env
+
+  user-activity:
+    build: ./server/userActivity
+    ports:
+      - "3004:3004"
+    env_file:
+      - ./server/userActivity/.env
+    depends_on:
+      - db
+
+volumes:
+  mysql_data:

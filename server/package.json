@@ -1,38 +1,10 @@
 {
-       "name": "kseb-display-por-backend",
-       "version": "1.0.0",
-       "description": "Node.js backend for KSEB with Express, SQLite, and WebSocket",
-       "main": "src/app.ts",
-       "scripts": {
-              "start": "node src/app.ts",
-              "dev": "nodemon src/app.ts",
-              "prisma:migrate": "prisma migrate dev",
-              "prisma:deploy": "prisma migrate deploy",
-              "prisma:generate": "prisma generate",
-              "prisma:reset": "prisma migrate reset"
-       },
-       "dependencies": {
-              "@prisma/client": "^6.9.0",
-              "bcrypt": "^6.0.0",
-              "cors": "^2.8.6",
-              "dotenv": "^16.6.1",
-              "express": "^4.21.1",
-              "http": "^0.0.1-security",
-              "jsonwebtoken": "^9.0.3",
-              "multer": "^1.4.5-lts.2",
-              "mysql2": "^3.15.3",
-              "prisma": "^6.9.0",
-              "sqlite3": "^5.1.7",
-              "ws": "^8.19.0"
-       },
-       "devDependencies": {
-              "@types/bcrypt": "^6.0.0",
-              "@types/cors": "^2.8.19",
-              "@types/express": "^5.0.6",
-              "@types/jsonwebtoken": "^9.0.10",
-              "@types/ws": "^8.18.1",
-              "nodemon": "^3.1.7",
-              "ts-node": "^10.9.2",
-              "typescript": "^5.9.3"
-       }
+  "name": "texboard-server",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"cd auth && npm run dev\" \"cd content && npm run dev\" \"cd realtime && npm run dev\" \"cd userActivity && npm run dev\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
 }
