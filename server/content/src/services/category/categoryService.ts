@@ -26,12 +26,27 @@ const createCategoryService = async ({
             throw new Error("CATEGORY_NAME_REQUIRED");
         }
 
+        // 🔥 Normalize name (avoid "Burger" vs "burger")
+        const normalizedName = name.trim().toLowerCase();
+
+        // 🔍 Check duplicate
+        const existing = await prisma.category.findFirst({
+            where: {
+                businessId,
+                name: normalizedName,
+            },
+        });
+
+        if (existing) {
+            throw new Error("CATEGORY_ALREADY_EXISTS");
+        }
+
         const category = await prisma.category.create({
             data: {
-                name,
+                name: normalizedName,
                 position,
-                businessId
-            }
+                businessId,
+            },
         });
 
         // await prisma.userActivity.create({
@@ -61,60 +76,70 @@ const createCategoryService = async ({
    UPDATE CATEGORY
 ================================ */
 const updateCategoryService = async ({
-    categoryId,
-    name,
-    position,
-    businessId,
-    userId
+  categoryId,
+  name,
+  position,
+  businessId,
+  userId
 }: CategoryInput) => {
 
-    try {
+  try {
 
-        if (!categoryId) {
-            throw new Error("CATEGORY_ID_REQUIRED");
-        }
-
-        const existingCategory = await prisma.category.findFirst({
-            where: {
-                id: categoryId,
-                businessId
-            }
-        });
-
-        if (!existingCategory) {
-            throw new Error("CATEGORY_NOT_FOUND");
-        }
-
-        const updatedCategory = await prisma.category.update({
-            where: { id: categoryId },
-            data: {
-                ...(name !== undefined && { name }),
-                ...(position !== undefined && { position })
-            }
-        });
-
-        // await prisma.userActivity.create({
-        //     data: {
-        //         businessId,
-        //         userId,
-        //         userActivityType: "UPDATED_CATEGORY",
-        //         UserActivityDesc: `Updated category ${updatedCategory.name}`
-        //     }
-        // });
-
-        sendRealtimeUpdate(
-            businessId,
-            "CATEGORY_UPDATED",
-            updatedCategory
-        );
-
-        return updatedCategory;
-
-    } catch (error: any) {
-        throw new Error(`ERROR_UPDATING_CATEGORY: ${error.message}`);
+    if (!categoryId) {
+      throw new Error("CATEGORY_ID_REQUIRED");
     }
-};
 
+    const existingCategory = await prisma.category.findFirst({
+      where: {
+        id: categoryId,
+        businessId
+      }
+    });
+
+    if (!existingCategory) {
+      throw new Error("CATEGORY_NOT_FOUND");
+    }
+
+    // 🔥 DUPLICATE CHECK (ONLY IF NAME IS BEING UPDATED)
+    if (name !== undefined) {
+
+      const normalizedName = name.trim().toLowerCase();
+
+      const duplicate = await prisma.category.findFirst({
+        where: {
+          businessId,
+          name: normalizedName,
+          NOT: {
+            id: categoryId // exclude current category
+          }
+        }
+      });
+
+      if (duplicate) {
+        throw new Error("CATEGORY_ALREADY_EXISTS");
+      }
+    }
+
+    const updatedCategory = await prisma.category.update({
+      where: { id: categoryId },
+      data: {
+        ...(name !== undefined && { name: name.trim().toLowerCase() }),
+        ...(position !== undefined && { position })
+      }
+    });
+
+    sendRealtimeUpdate(
+      businessId,
+      "CATEGORY_UPDATED",
+      updatedCategory
+    );
+
+    return updatedCategory;
+
+  } catch (error: any) {
+    throw new Error(`ERROR_UPDATING_CATEGORY: ${error.message}`);
+  }
+};
 
 /* ================================
    DELETE CATEGORY
@@ -175,9 +200,35 @@ const deleteCategoryService = async (
     }
 };
 
+const getCategoriesService = async (businessId: number) => {
+  const categories = await prisma.category.findMany({
+    where: { businessId },
+    orderBy: { position: "asc" },
+    include: {
+      _count: {
+        select: {
+          products: {
+            where:{
+              isActive: true
+            }
+          }
+        },
+      },
+    },
+  });
+
+  return categories.map((c) => ({
+    id: c.id,
+    name: c.name,
+    position: c.position,
+    productCount: c._count.products, // 🔥 THIS LINE IS THE KEY
+  }));
+};
+
 
 export {
     createCategoryService,
     updateCategoryService,
-    deleteCategoryService
+    deleteCategoryService,
+    getCategoriesService
 };

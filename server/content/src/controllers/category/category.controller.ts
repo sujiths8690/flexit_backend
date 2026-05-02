@@ -2,7 +2,8 @@ import { Request, Response } from "express";
 import {
     createCategoryService,
     updateCategoryService,
-    deleteCategoryService
+    deleteCategoryService,
+    getCategoriesService
 } from "../../services/category/categoryService";
 
 import { successResponse, errorResponse } from "../../utils/response.helper";
@@ -114,6 +115,32 @@ export const deleteCategoryController = async (req: Request, res: Response) => {
             res,
             result,
             "Category deleted successfully",
+            HTTP_STATUS.OK
+        );
+
+    } catch (error: any) {
+        return errorResponse(
+            res,
+            error.message,
+            HTTP_STATUS.BAD_REQUEST
+        );
+    }
+};
+
+/* ================================
+   GET ALL CATEGORIES
+================================ */
+export const getCategoriesController = async (req: Request, res: Response) => {
+    try {
+
+        const categories = await getCategoriesService(
+            req.user!.businessId
+        );
+
+        return successResponse(
+            res,
+            categories,
+            "Categories fetched successfully",
             HTTP_STATUS.OK
         );
 

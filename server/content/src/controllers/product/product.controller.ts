@@ -7,6 +7,7 @@ import {
     deleteProductService,
     getAllProductService,
     getOneProductService,
+    getProductsByCategoryService,
     updateProductService
 } from "../../services/product/product.service";
 
@@ -24,6 +25,7 @@ export const createProduct = async (req: Request, res: Response) => {
             imageUrl,
             categoryId,
             position,
+            isAvailable
         } = req.body;
 
         if (!name || !categoryId) {
@@ -44,6 +46,7 @@ export const createProduct = async (req: Request, res: Response) => {
             businessId: req.user!.businessId,
             position,
             userId: req.user!.userId,
+            isAvailable
         });
 
         return successResponse(
@@ -91,6 +94,7 @@ export const updateProduct = async (req: Request, res: Response) => {
             imageUrl,
             categoryId,
             position,
+            isAvailable
         } = req.body;
 
         const product = await updateProductService({
@@ -104,6 +108,7 @@ export const updateProduct = async (req: Request, res: Response) => {
             position,
             businessId: req.user!.businessId,
             userId: req.user!.userId,
+            isAvailable
         });
 
         return successResponse(
@@ -135,6 +140,42 @@ export const getAllProducts = async (req: Request, res: Response) => {
     try {
         const products = await getAllProductService(
             req.user!.businessId
+        );
+
+        return successResponse(
+            res,
+            products,
+            "Products fetched successfully",
+            HTTP_STATUS.OK
+        );
+
+    } catch (error: any) {
+        return errorResponse(
+            res,
+            error.message || "Failed to fetch products",
+            HTTP_STATUS.INTERNAL_SERVER_ERROR
+        );
+    }
+};
+
+/* ================================
+   GET PRODUCTS BY CATEGORY
+================================ */
+export const getProductsByCategory = async (req: Request, res: Response) => {
+    try {
+        const categoryId = Number(req.params.categoryId);
+
+        if (isNaN(categoryId)) {
+            return errorResponse(
+                res,
+                "Invalid categoryId",
+                HTTP_STATUS.BAD_REQUEST
+            );
+        }
+
+        const products = await getProductsByCategoryService(
+            req.user!.businessId,
+            categoryId
         );
 
         return successResponse(

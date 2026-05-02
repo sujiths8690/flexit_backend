@@ -17,7 +17,7 @@ model User {
   isActive          Boolean   @default(true)
   lastLogin         DateTime?
 
-  businessId        Int   // just reference, no relation needed here
+  businessId        Int?   // just reference, no relation needed here
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

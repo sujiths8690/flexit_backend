@@ -2,11 +2,13 @@ import express from 'express';
 import dotenv from 'dotenv';
 import http from 'http';
 import cors from "cors";
+import path from "path";
 
 import businessRoutes from "./routes/business/business.routes";
 import productRoutes from "./routes/product/product.routes";
 import categoryRoutes from "./routes/category/category.routes";
 import deviceRoutes from "./routes/device/deviceRegistration.routes";
+import mediaRoutes from "./routes/media/media.routes";
 
 dotenv.config();
 
@@ -24,9 +26,10 @@ app.use(cors({
 //Middleware
 app.use(express.json());
 
+app.use("/uploads", express.static("/app/uploads"));
 
 app.use((req, res, next) => {
-  console.log("👉 Incoming URL:", req.url);
+  console.log("METHOD:", req.method, "URL:", req.originalUrl);
   next();
 });
 
@@ -35,6 +38,8 @@ app.use("/api/business", businessRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/device", deviceRoutes);
+app.use("/api/content/device", deviceRoutes);
+app.use("/api/media", mediaRoutes);
 
 //root Route
 app.get('/', (req,res)=>{

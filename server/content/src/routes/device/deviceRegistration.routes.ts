@@ -1,6 +1,9 @@
 import { Router } from "express";
 import {
   registerDeviceController,
+  pairDeviceController,
+  listDevicesController,
+  getDeviceConfigController,
   deleteDeviceController,
 } from "../../controllers/device/deviceRegistrtaion.controller";
 import { Role } from "../../types/role";
@@ -10,9 +13,26 @@ import { allowRoles } from "../../middleware/role";
 const router = Router();
 
 /**
+ * Display polling route is public because the device has no user token before pairing.
+ */
+router.get(
+  "/:deviceCode/config",
+  getDeviceConfigController
+);
+
+/**
  * All device routes require authentication
  */
 router.use(authenticate);
+
+/**
+ * List devices for authenticated user's business.
+ */
+router.get(
+  "/",
+  allowRoles(Role.ADMIN, Role.STAFF),
+  listDevicesController
+);
 
 /**
  * Register device
@@ -22,6 +42,15 @@ router.post(
   "/",
   allowRoles(Role.ADMIN, Role.STAFF),
   registerDeviceController
+);
+
+/**
+ * Pair a display-generated device code to the authenticated user's business.
+ */
+router.post(
+  "/pair",
+  allowRoles(Role.ADMIN, Role.STAFF),
+  pairDeviceController
 );
 
 /**

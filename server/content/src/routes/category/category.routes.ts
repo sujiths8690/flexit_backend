@@ -3,6 +3,7 @@ import {
   createCategoryController,
   updateCategoryController,
   deleteCategoryController,
+  getCategoriesController,
 } from "../../controllers/category/category.controller";
 
 import { authenticate } from "../../middleware/auth";
@@ -44,6 +45,16 @@ router.delete(
   "/:categoryId",
   allowRoles(Role.ADMIN),
   deleteCategoryController
+);
+
+/**
+ * Get all categories
+ * ADMIN + STAFF allowed
+ */
+router.get(
+  "/",
+  allowRoles(Role.ADMIN, Role.STAFF),
+  getCategoriesController
 );
 
 export default router;

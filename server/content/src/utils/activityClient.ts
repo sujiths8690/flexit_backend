@@ -1,7 +1,7 @@
 // utils/activityClient.ts
 import axios from "axios";
 
-const ACTIVITY_URL = "http://localhost:3004/activity";
+const ACTIVITY_URL = "http://user-activity:3004/api/user-activity";
 
 export const logActivity = async (
   userId: number,

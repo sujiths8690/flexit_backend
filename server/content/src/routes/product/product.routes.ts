@@ -5,6 +5,7 @@ import {
   getAllProducts,
   getOneProduct,
   deleteProduct,
+  getProductsByCategory,
 } from "../../controllers/product/product.controller";
 
 import { authenticate } from "../../middleware/auth";
@@ -45,6 +46,11 @@ router.patch(
 router.get(
   "/",
   getAllProducts
+);
+
+router.get(
+  "/category/:categoryId", 
+  getProductsByCategory
 );
 
 /**

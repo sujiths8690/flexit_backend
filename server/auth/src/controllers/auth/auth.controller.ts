@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 
-import { LoginUser, registerService } from "../../services/auth/auth.services";
+import { linkBusinessService, LoginUser, registerService } from "../../services/auth/auth.services";
 import { errorResponse, successResponse } from "../../utils/response.helper";
 import { HTTP_STATUS } from "../../utils/httpStatus";
 
@@ -9,12 +9,12 @@ import { HTTP_STATUS } from "../../utils/httpStatus";
 ================================ */
 export const register = async (req: Request, res: Response) => {
   try {
-    const { email, password, businessId } = req.body;
+    const { email, password } = req.body;
 
-    if (!email || !password || !businessId) {
+    if (!email || !password) {
       return errorResponse(
         res,
-        "email, password and businessId are required",
+        "Email and password are required",
         HTTP_STATUS.BAD_REQUEST
       );
     }
@@ -22,7 +22,6 @@ export const register = async (req: Request, res: Response) => {
     const result = await registerService({
       email,
       password,
-      businessId,
     });
 
     return successResponse(
@@ -82,5 +81,34 @@ export const login = async (req: Request, res: Response) => {
       err.message || "Login failed",
       HTTP_STATUS.UNAUTHORIZED
     );
+  }
+};
+
+export const linkBusiness = async (req: Request, res: Response) => {
+  try {
+    console.log("🔥 LINK API HIT");
+    console.log("USER:", req.user);
+    console.log("BODY:", req.body);
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const userId = req.user.userId; 
+    const { businessId } = req.body;
+
+    if (!businessId) {
+      return res.status(400).json({ error: "businessId required" });
+    }
+
+    const result= await linkBusinessService(userId, businessId);
+
+    return res.json({
+      success: true,
+      message: "Business linked successfully",
+      data: result
+    });
+
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to link business" });
   }
 };

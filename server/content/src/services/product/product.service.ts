@@ -15,6 +15,7 @@ interface ProductInput{
     businessId: number;
     position?: number;
     userId: number;
+    isAvailable: boolean;
 }
 
 const createProductService= async({
@@ -27,6 +28,7 @@ const createProductService= async({
     businessId,
     position=0,
     userId,
+    isAvailable
 }: ProductInput)=>{
     try{
         if(categoryId){
@@ -50,7 +52,7 @@ const createProductService= async({
                 vegFlag,
                 categoryId,
                 imageUrl,
-                isAvailable: true,
+                isAvailable,
                 position,
                 businessId,
             },
@@ -63,9 +65,11 @@ const createProductService= async({
             `Created product ${product.name}`
         )
 
-        const response ={
+        const response = {
             id: product.id,
             name: product.name,
+            description: product.description,   // 🔥 ADD
+            imageUrl: product.imageUrl,         // 🔥 ADD
             price: product.price,
             vegFlag: product.vegFlag,
             categoryId: product.categoryId,
@@ -95,6 +99,7 @@ const updateProductService= async({
     businessId,
     position,
     userId,
+    isAvailable
 }: ProductInput)=>{
     try{
         if(!productId){
@@ -121,6 +126,7 @@ const updateProductService= async({
         if (categoryId !== undefined) updateData.categoryId = categoryId;
         if (imageUrl !== undefined) updateData.imageUrl = imageUrl;
         if (position !== undefined) updateData.position = position;
+        if (isAvailable !== undefined) updateData.isAvailable = isAvailable;
 
         const updatedProduct = await prisma.product.update({
             where: { id: productId },
@@ -138,9 +144,11 @@ const updateProductService= async({
             `Updated product ${updatedProduct.name}. Changes: ${changeDescription}`
         )
 
-        const response ={
+        const response = {
             id: updatedProduct.id,
             name: updatedProduct.name,
+            description: updatedProduct.description,   // 🔥 ADD
+            imageUrl: updatedProduct.imageUrl,         // 🔥 ADD
             price: updatedProduct.price,
             vegFlag: updatedProduct.vegFlag,
             categoryId: updatedProduct.categoryId,
@@ -160,22 +168,47 @@ const updateProductService= async({
     }
 }
 
-const getAllProductService=async(businessId: number)=>{
-    try{
-        const products= await prisma.product.findMany({
-            where:{
+const getAllProductService = async (businessId: number) => {
+    try {
+        const products = await prisma.product.findMany({
+            where: {
                 businessId
             }
         });
 
-        if(products.length === 0){
-            throw new Error("NO_PRODUCTS_ADDED");
-        }
+        // ❌ REMOVE THIS
+        // if(products.length === 0){
+        //     throw new Error("NO_PRODUCTS_ADDED");
+        // }
 
+        // ✅ RETURN EMPTY ARRAY INSTEAD
         return products;
-    }catch(error){
-        throw new Error(`ERROR_FETCHING_ALL_PRODUCTS ${error}`)
+
+    } catch (error) {
+        throw new Error(`ERROR_FETCHING_ALL_PRODUCTS ${error}`);
     }
+};
+
+const getProductsByCategoryService = async (
+  businessId: number,
+  categoryId: number
+) => {
+  try {
+    const products = await prisma.product.findMany({
+      where: {
+        businessId,
+        categoryId,
+        isActive: true,   // 🔥 important
+      },
+      orderBy: {
+        position: 'asc', // optional but good
+      },
+    });
+
+    return products;
+  } catch (error) {
+    throw new Error(`ERROR_FETCHING_PRODUCTS_BY_CATEGORY ${error}`);
+  }
 };
 
 const getOneProductService= async(productId:number, businessId:number)=>{
@@ -240,5 +273,6 @@ export{
     updateProductService,
     getAllProductService,
     getOneProductService,
-    deleteProductService
+    deleteProductService,
+    getProductsByCategoryService
 }

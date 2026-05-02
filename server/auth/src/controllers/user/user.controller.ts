@@ -29,11 +29,21 @@ export const createUser= async(req:Request, res:Response)=> {
             );
         }
 
+        if (!req.user || !req.user.businessId) {
+        return errorResponse(
+            res,
+            "Business not linked",
+            HTTP_STATUS.FORBIDDEN
+        );
+        }
+
+        const businessId = req.user.businessId;
+
         const user= await createUserService({
             email,
             password,
             role,
-            businessId: req.user!.businessId,
+            businessId
         });
 
         return successResponse(
@@ -104,11 +114,21 @@ export const updateUser= async(
 
         const { email, role }= req.body;
 
+        if (!req.user || !req.user.businessId) {
+        return errorResponse(
+            res,
+            "Business not linked",
+            HTTP_STATUS.FORBIDDEN
+        );
+        }
+
+        const businessId = req.user.businessId;
+
         const user= await updateUserService({
             id,
             email,
             role,
-            businessId: req.user!.businessId
+            businessId
         });
 
         return successResponse(
@@ -150,7 +170,17 @@ export const disableUser= async(
     try{
         const id= Number(req.params.id);
 
-        await disableUserService(id, req.user!.businessId);
+        if (!req.user || !req.user.businessId) {
+        return errorResponse(
+            res,
+            "Business not linked",
+            HTTP_STATUS.FORBIDDEN
+        );
+        }
+
+        const businessId = req.user.businessId;
+
+        await disableUserService(id, businessId);
 
         return successResponse(
             res,
@@ -191,7 +221,17 @@ export const enableUser= async(
     try{
         const id = Number(req.params.id);
 
-        await enableUserService(id, req.user!.businessId);
+        if (!req.user || !req.user.businessId) {
+            return errorResponse(
+                res,
+                "Business not linked",
+                HTTP_STATUS.FORBIDDEN
+            );
+        }
+
+        const businessId = req.user.businessId;
+
+        await enableUserService(id, businessId);
 
         return successResponse(
             res,
@@ -230,9 +270,19 @@ export const changePassword= async(
             );
         }
 
+        if (!req.user || !req.user.businessId) {
+        return errorResponse(
+            res,
+            "Business not linked",
+            HTTP_STATUS.FORBIDDEN
+        );
+        }
+
+        const businessId = req.user.businessId;
+
         await changePasswordService({
             userId: req.user!.userId,
-            businessId: req.user!.businessId,
+            businessId,
             currentPassword,
             newPassword
         });

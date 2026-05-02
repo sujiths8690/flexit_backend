@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { register, login } from "../../controllers/auth/auth.controller";
+import { register, login, linkBusiness } from "../../controllers/auth/auth.controller";
+import { authenticate } from "../../middleware/auth";
 
 const router = Router();
 
@@ -12,5 +13,7 @@ router.post("/register", register);
 
 // Login existing user
 router.post("/login", login);
+
+router.post("/link-business", authenticate, linkBusiness);
 
 export default router;

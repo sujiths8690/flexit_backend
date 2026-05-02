@@ -51,6 +51,16 @@ export const authenticate = async (
       return;
     }
 
+    // Allow linking even if businessId is null
+    const isLinkBusiness = req.originalUrl.includes("/link-business");
+
+    if (!user.businessId && !isLinkBusiness) {
+      res.status(403).json({
+        error: "Please create a business first",
+      });
+      return;
+    }
+
     req.user = {
       userId: user.id,
       role: user.role,

@@ -38,6 +38,8 @@ services:
       - ./server/content/.env
     depends_on:
       - db
+    volumes:
+      - ./server/content/uploads:/app/uploads 
 
   realtime:
     build: ./server/realtime

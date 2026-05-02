@@ -5,6 +5,7 @@ import { sendRealtimeUpdate } from "../../utils/realtimeClient";
 interface DeviceInput {
     deviceId?: number;
     name?: string;
+    deviceCode?: string;
     businessId: number;
     userId: number;
 }
@@ -69,6 +70,156 @@ const registerDeviceService = async ({
 
 
 /* ================================
+   PAIR DEVICE BY DISPLAY CODE
+================================ */
+const pairDeviceByCodeService = async ({
+    deviceCode,
+    name,
+    businessId,
+    userId
+}: DeviceInput) => {
+
+    try {
+
+        if (!deviceCode) {
+            throw new Error("DEVICE_CODE_REQUIRED");
+        }
+
+        const normalizedCode = deviceCode.trim().toUpperCase();
+
+        const business = await prisma.business.findUnique({
+            where: { id: businessId }
+        });
+
+        if (!business) {
+            throw new Error("BUSINESS_NOT_FOUND");
+        }
+
+        const existingDevice = await prisma.device.findUnique({
+            where: { deviceCode: normalizedCode }
+        });
+
+        if (existingDevice && existingDevice.businessId !== businessId) {
+            throw new Error("DEVICE_ALREADY_PAIRED");
+        }
+
+        const device = existingDevice
+            ? await prisma.device.update({
+                where: { id: existingDevice.id },
+                data: {
+                    name: name?.trim() || existingDevice.name || `Display ${normalizedCode.slice(0, 4)}`
+                }
+            })
+            : await prisma.device.create({
+                data: {
+                    name: name?.trim() || `Display ${normalizedCode.slice(0, 4)}`,
+                    businessId,
+                    deviceCode: normalizedCode
+                }
+            });
+
+        logActivity(
+            userId,
+            businessId,
+            "PAIRED_DEVICE",
+            `Paired display device with code ${device.deviceCode}`
+        );
+
+        sendRealtimeUpdate(
+            businessId,
+            "DEVICE_PAIRED",
+            device.deviceCode
+        );
+
+        return {
+            id: device.id,
+            name: device.name,
+            deviceCode: device.deviceCode,
+            mode: device.displayMode,
+            online: true
+        };
+
+    } catch (error: any) {
+        throw new Error(`ERROR_PAIRING_DEVICE: ${error.message}`);
+    }
+};
+
+/* ================================
+   LIST DEVICES FOR BUSINESS
+================================ */
+const listDevicesByBusinessService = async (businessId: number) => {
+
+    try {
+
+        const devices = await prisma.device.findMany({
+            where: {
+                businessId,
+                isActive: true
+            },
+            orderBy: { createdAt: "desc" }
+        });
+
+        return devices.map((device) => ({
+            id: device.id,
+            name: device.name,
+            deviceCode: device.deviceCode,
+            mode: device.displayMode,
+            online: true
+        }));
+
+    } catch (error: any) {
+        throw new Error(`ERROR_FETCHING_DEVICES: ${error.message}`);
+    }
+};
+
+
+/* ================================
+   PUBLIC DISPLAY CONFIG LOOKUP
+================================ */
+const getDeviceConfigByCodeService = async (deviceCode: string) => {
+
+    try {
+
+        if (!deviceCode) {
+            throw new Error("DEVICE_CODE_REQUIRED");
+        }
+
+        const normalizedCode = deviceCode.trim().toUpperCase();
+
+        const device = await prisma.device.findUnique({
+            where: { deviceCode: normalizedCode },
+            include: { business: true }
+        });
+
+        if (!device) {
+            return {
+                deviceCode: normalizedCode,
+                isPaired: false,
+                orientation: "landscape",
+                displayConfig: null
+            };
+        }
+
+        return {
+            deviceCode: device.deviceCode,
+            isPaired: true,
+            businessName: device.business.name,
+            businessLogoUrl: null,
+            orientation: "landscape",
+            displayConfig: {
+                mode: "menuBoard",
+                menuCategory: "all",
+                autoScrollIntervalSeconds: 8
+            }
+        };
+
+    } catch (error: any) {
+        throw new Error(`ERROR_FETCHING_DEVICE_CONFIG: ${error.message}`);
+    }
+};
+
+
+/* ================================
    DELETE DEVICE
 ================================ */
 const deleteDeviceService = async (
@@ -123,5 +274,8 @@ const deleteDeviceService = async (
 
 export {
     registerDeviceService,
+    pairDeviceByCodeService,
+    listDevicesByBusinessService,
+    getDeviceConfigByCodeService,
     deleteDeviceService
 };

@@ -1,6 +1,9 @@
 import { Request, Response } from "express";
 import {
     registerDeviceService,
+    pairDeviceByCodeService,
+    listDevicesByBusinessService,
+    getDeviceConfigByCodeService,
     deleteDeviceService
 } from "../../services/device/deviceRegistration.service";
 
@@ -42,6 +45,123 @@ export const registerDeviceController = async (req: Request, res: Response) => {
             return errorResponse(res, error.message, HTTP_STATUS.NOT_FOUND);
         }
 
+        return errorResponse(
+            res,
+            error.message,
+            HTTP_STATUS.INTERNAL_SERVER_ERROR
+        );
+    }
+};
+
+
+/* ================================
+   PAIR DEVICE BY DISPLAY CODE
+================================ */
+export const pairDeviceController = async (req: Request, res: Response) => {
+    try {
+        const { deviceCode, name, businessId: bodyBusinessId } = req.body;
+
+        if (!deviceCode || typeof deviceCode !== "string") {
+            return errorResponse(
+                res,
+                "Device code is required",
+                HTTP_STATUS.BAD_REQUEST
+            );
+        }
+
+        const businessId =
+            req.user!.businessId ?? Number(bodyBusinessId);
+
+        if (!businessId || Number.isNaN(businessId)) {
+            return errorResponse(
+                res,
+                "Please log out and log in again before pairing this display.",
+                HTTP_STATUS.UNAUTHORIZED
+            );
+        }
+
+        const device = await pairDeviceByCodeService({
+            deviceCode,
+            name,
+            businessId,
+            userId: req.user!.userId
+        });
+
+        return successResponse(
+            res,
+            device,
+            "Device paired successfully",
+            HTTP_STATUS.OK
+        );
+
+    } catch (error: any) {
+
+        if (error.message.includes("BUSINESS_NOT_FOUND")) {
+            return errorResponse(res, error.message, HTTP_STATUS.NOT_FOUND);
+        }
+
+        if (error.message.includes("DEVICE_ALREADY_PAIRED")) {
+            return errorResponse(res, error.message, HTTP_STATUS.CONFLICT);
+        }
+
+        return errorResponse(
+            res,
+            error.message,
+            HTTP_STATUS.INTERNAL_SERVER_ERROR
+        );
+    }
+};
+
+
+/* ================================
+   LIST DEVICES FOR BUSINESS
+================================ */
+export const listDevicesController = async (req: Request, res: Response) => {
+    try {
+        const devices = await listDevicesByBusinessService(req.user!.businessId);
+
+        return successResponse(
+            res,
+            devices,
+            "Devices fetched successfully",
+            HTTP_STATUS.OK
+        );
+
+    } catch (error: any) {
+        return errorResponse(
+            res,
+            error.message,
+            HTTP_STATUS.INTERNAL_SERVER_ERROR
+        );
+    }
+};
+
+
+/* ================================
+   PUBLIC DISPLAY CONFIG LOOKUP
+================================ */
+export const getDeviceConfigController = async (req: Request, res: Response) => {
+    try {
+        const deviceCode = req.params.deviceCode;
+
+        if (!deviceCode || typeof deviceCode !== "string") {
+            return errorResponse(
+                res,
+                "Device code is required",
+                HTTP_STATUS.BAD_REQUEST
+            );
+        }
+
+        const config = await getDeviceConfigByCodeService(deviceCode);
+
+        return successResponse(
+            res,
+            config,
+            "Device config fetched successfully",
+            HTTP_STATUS.OK
+        );
+
+    } catch (error: any) {
         return errorResponse(
             res,
             error.message,

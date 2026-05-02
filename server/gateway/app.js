@@ -3,6 +3,10 @@ const cors = require("cors");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 
 const app=express();
+const authTarget = process.env.AUTH_SERVICE_URL || "http://auth:3001";
+const contentTarget = process.env.CONTENT_SERVICE_URL || "http://content:3002/api";
+const userActivityTarget =
+  process.env.USER_ACTIVITY_SERVICE_URL || "http://user-activity:3004";
 
 app.use(cors());
 
@@ -14,7 +18,7 @@ app.use((req, res, next) => {
 app.use(
   "/api/auth",
   createProxyMiddleware({
-    target: "http://auth:3001",
+    target: authTarget,
     changeOrigin: true,
 
     pathRewrite: {
@@ -28,8 +32,11 @@ app.use(
 app.use(
   "/api/content",
   createProxyMiddleware({
-    target: "http://content:3002/api",  // 🔥 move /api here
+    target: contentTarget,
     changeOrigin: true,
+    pathRewrite: {
+      "^/api/content": "",
+    },
     logLevel: "debug",
   })
 );
@@ -38,7 +45,7 @@ app.use(
 app.use(
   "/api/user-activity",
   createProxyMiddleware({
-    target: "http://user-activity:3004",
+    target: userActivityTarget,
     changeOrigin: true,
 
     pathRewrite: {
