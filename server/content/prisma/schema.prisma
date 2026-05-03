@@ -34,6 +34,15 @@ model Device {
   name          String?
 
   displayMode   DisplayMode @default(FULL_MENU)
+  orientation   String      @default("normal")
+  menuTheme     String      @default("light")
+  themeColor    String      @default("gold")
+  displayContentMode String  @default("allCategories")
+  selectedCategoryId Int?
+  selectedMediaId Int?
+  transitionStyle String     @default("fade")
+  transitionSpeedSeconds Float @default(0.5)
+  autoScrollIntervalSeconds Int @default(8)
 
   businessId    Int
   business      Business  @relation(fields: [businessId], references: [id])

@@ -1,0 +1,4 @@
+ALTER TABLE `Device`
+  ADD COLUMN `orientation` VARCHAR(191) NOT NULL DEFAULT 'normal',
+  ADD COLUMN `menuTheme` VARCHAR(191) NOT NULL DEFAULT 'light',
+  ADD COLUMN `autoScrollIntervalSeconds` INTEGER NOT NULL DEFAULT 8;

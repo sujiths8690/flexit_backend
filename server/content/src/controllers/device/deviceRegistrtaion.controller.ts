@@ -4,6 +4,7 @@ import {
     pairDeviceByCodeService,
     listDevicesByBusinessService,
     getDeviceConfigByCodeService,
+    updateDeviceConfigService,
     deleteDeviceService
 } from "../../services/device/deviceRegistration.service";
 
@@ -162,6 +163,72 @@ export const getDeviceConfigController = async (req: Request, res: Response) => 
         );
 
     } catch (error: any) {
+        return errorResponse(
+            res,
+            error.message,
+            HTTP_STATUS.INTERNAL_SERVER_ERROR
+        );
+    }
+};
+
+
+/* ================================
+   UPDATE DISPLAY CONFIG
+================================ */
+export const updateDeviceConfigController = async (req: Request, res: Response) => {
+    try {
+        const deviceId = Number(req.params.deviceId);
+
+        if (isNaN(deviceId)) {
+            return errorResponse(
+                res,
+                "Invalid deviceId",
+                HTTP_STATUS.BAD_REQUEST
+            );
+        }
+
+        const {
+            orientation,
+            menuTheme,
+            themeColor,
+            displayContentMode,
+            selectedCategoryId,
+            selectedMediaId,
+            transitionStyle,
+            transitionSpeedSeconds,
+            autoScrollIntervalSeconds
+        } = req.body;
+
+        const device = await updateDeviceConfigService({
+            deviceId,
+            businessId: req.user!.businessId,
+            userId: req.user!.userId,
+            orientation,
+            menuTheme,
+            themeColor,
+            displayContentMode,
+            selectedCategoryId,
+            selectedMediaId,
+            transitionStyle,
+            transitionSpeedSeconds,
+            autoScrollIntervalSeconds
+        });
+
+        return successResponse(
+            res,
+            device,
+            "Device config updated successfully",
+            HTTP_STATUS.OK
+        );
+
+    } catch (error: any) {
+        if (
+            error.message.includes("DEVICE_NOT_FOUND") ||
+            error.message.includes("INVALID_")
+        ) {
+            return errorResponse(res, error.message, HTTP_STATUS.BAD_REQUEST);
+        }
+
         return errorResponse(
             res,
             error.message,

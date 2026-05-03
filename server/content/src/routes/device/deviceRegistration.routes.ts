@@ -4,6 +4,7 @@ import {
   pairDeviceController,
   listDevicesController,
   getDeviceConfigController,
+  updateDeviceConfigController,
   deleteDeviceController,
 } from "../../controllers/device/deviceRegistrtaion.controller";
 import { Role } from "../../types/role";
@@ -51,6 +52,15 @@ router.post(
   "/pair",
   allowRoles(Role.ADMIN, Role.STAFF),
   pairDeviceController
+);
+
+/**
+ * Update display settings such as theme and orientation.
+ */
+router.patch(
+  "/:deviceId/config",
+  allowRoles(Role.ADMIN, Role.STAFF),
+  updateDeviceConfigController
 );
 
 /**

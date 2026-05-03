@@ -1,0 +1,2 @@
+ALTER TABLE `Device`
+  ADD COLUMN `themeColor` VARCHAR(191) NOT NULL DEFAULT 'gold';

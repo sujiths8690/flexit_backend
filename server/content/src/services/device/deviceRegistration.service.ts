@@ -10,6 +10,99 @@ interface DeviceInput {
     userId: number;
 }
 
+interface DeviceConfigInput {
+    deviceId: number;
+    businessId: number;
+    userId: number;
+    orientation?: string;
+    menuTheme?: string;
+    themeColor?: string;
+    displayContentMode?: string;
+    selectedCategoryId?: number | null;
+    selectedMediaId?: number | null;
+    transitionStyle?: string;
+    transitionSpeedSeconds?: number;
+    autoScrollIntervalSeconds?: number;
+}
+
+const allowedOrientations = new Set(["normal", "left", "right", "inverted"]);
+const allowedMenuThemes = new Set([
+    "light",
+    "dark",
+    "warm",
+    "neon",
+    "mint",
+    "ocean",
+    "sunrise",
+    "royal",
+    "paper",
+    "graphite"
+]);
+const allowedThemeColors = new Set([
+    "gold",
+    "green",
+    "blue",
+    "rose",
+    "purple",
+    "orange",
+    "teal",
+    "slate"
+]);
+const allowedContentModes = new Set([
+    "allCategories",
+    "category",
+    "allMedia",
+    "media"
+]);
+const allowedTransitionStyles = new Set(["fade", "slide", "zoom", "flip"]);
+
+const normalizeDisplaySetting = (value?: string) =>
+    typeof value === "string" ? value.trim().toLowerCase() : value;
+
+const mediaUrl = (url: string) => {
+    const normalized = url.replace(/\\/g, "/");
+    return normalized.startsWith("http") ? normalized : `/${normalized}`;
+};
+
+const mediaType = (type: string) => type.toLowerCase();
+
+const productCategory = (product: any) => {
+    if (product.category) {
+        return {
+            id: product.category.id,
+            name: product.category.name
+        };
+    }
+    return {
+        id: product.categoryId,
+        name: "menu"
+    };
+};
+
+const serializeProduct = (product: any) => {
+    const category = productCategory(product);
+    return {
+        id: product.id.toString(),
+        name: product.name,
+        description: product.description,
+        price: Number(product.price),
+        imageUrl: product.imageUrl,
+        category: product.vegFlag === "non_veg" ? "nonVeg" : "veg",
+        categoryId: category.id,
+        categoryName: category.name,
+        isAvailable: product.isAvailable,
+        isFeatured: false,
+        tags: []
+    };
+};
+
+const serializeMedia = (media: any) => ({
+    id: media.id,
+    fileName: media.fileName,
+    url: mediaUrl(media.url),
+    type: mediaType(media.type)
+});
+
 /* ================================
    REGISTER DEVICE
 ================================ */
@@ -136,7 +229,18 @@ const pairDeviceByCodeService = async ({
             name: device.name,
             deviceCode: device.deviceCode,
             mode: device.displayMode,
-            online: true
+            orientation: (device as any).orientation ?? "normal",
+            menuTheme: (device as any).menuTheme ?? "light",
+            themeColor: (device as any).themeColor ?? "gold",
+            displayContentMode: (device as any).displayContentMode ?? "allCategories",
+            selectedCategoryId: (device as any).selectedCategoryId ?? null,
+            selectedMediaId: (device as any).selectedMediaId ?? null,
+            transitionStyle: (device as any).transitionStyle ?? "fade",
+            transitionSpeedSeconds: (device as any).transitionSpeedSeconds ?? 0.5,
+            autoScrollIntervalSeconds:
+                (device as any).autoScrollIntervalSeconds ?? 8,
+            online: true,
+            createdAt: device.createdAt
         };
 
     } catch (error: any) {
@@ -164,7 +268,18 @@ const listDevicesByBusinessService = async (businessId: number) => {
             name: device.name,
             deviceCode: device.deviceCode,
             mode: device.displayMode,
-            online: true
+            orientation: (device as any).orientation ?? "normal",
+            menuTheme: (device as any).menuTheme ?? "light",
+            themeColor: (device as any).themeColor ?? "gold",
+            displayContentMode: (device as any).displayContentMode ?? "allCategories",
+            selectedCategoryId: (device as any).selectedCategoryId ?? null,
+            selectedMediaId: (device as any).selectedMediaId ?? null,
+            transitionStyle: (device as any).transitionStyle ?? "fade",
+            transitionSpeedSeconds: (device as any).transitionSpeedSeconds ?? 0.5,
+            autoScrollIntervalSeconds:
+                (device as any).autoScrollIntervalSeconds ?? 8,
+            online: true,
+            createdAt: device.createdAt
         }));
 
     } catch (error: any) {
@@ -195,26 +310,232 @@ const getDeviceConfigByCodeService = async (deviceCode: string) => {
             return {
                 deviceCode: normalizedCode,
                 isPaired: false,
-                orientation: "landscape",
+                orientation: "normal",
                 displayConfig: null
             };
         }
+
+        const contentMode = (device as any).displayContentMode ?? "allCategories";
+        const selectedCategoryId = (device as any).selectedCategoryId ?? null;
+        const selectedMediaId = (device as any).selectedMediaId ?? null;
+        const transitionStyle = (device as any).transitionStyle ?? "fade";
+        const transitionSpeedSeconds = (device as any).transitionSpeedSeconds ?? 0.5;
+        const interval = (device as any).autoScrollIntervalSeconds ?? 8;
+        const isMediaMode = contentMode === "allMedia" || contentMode === "media";
+        const mediaWhere: any = { businessId: device.businessId };
+        if (contentMode === "media" && selectedMediaId) {
+            mediaWhere.id = selectedMediaId;
+        }
+        const productWhere: any = {
+            businessId: device.businessId,
+            isActive: true,
+            isAvailable: true
+        };
+        if (contentMode === "category" && selectedCategoryId) {
+            productWhere.categoryId = selectedCategoryId;
+        }
+        const [mediaItems, menuItems] = isMediaMode
+            ? [
+                await prisma.media.findMany({
+                    where: mediaWhere,
+                    orderBy: { createdAt: "desc" }
+                }),
+                []
+            ]
+            : [
+                [],
+                await prisma.product.findMany({
+                    where: productWhere,
+                    include: { category: true },
+                    orderBy: [{ category: { position: "asc" } }, { position: "asc" }]
+                })
+            ];
 
         return {
             deviceCode: device.deviceCode,
             isPaired: true,
             businessName: device.business.name,
             businessLogoUrl: null,
-            orientation: "landscape",
+            orientation: (device as any).orientation ?? "normal",
+            menuTheme: (device as any).menuTheme ?? "light",
+            themeColor: (device as any).themeColor ?? "gold",
             displayConfig: {
-                mode: "menuBoard",
+                mode: isMediaMode ? "media" : "menuBoard",
+                contentMode,
+                selectedCategoryId,
+                selectedMediaId,
                 menuCategory: "all",
-                autoScrollIntervalSeconds: 8
+                themeOverride: (device as any).menuTheme ?? "light",
+                themeColor: (device as any).themeColor ?? "gold",
+                transitionStyle,
+                transitionSpeedSeconds,
+                autoScrollIntervalSeconds: interval,
+                mediaItems: mediaItems.map(serializeMedia),
+                menuItems: menuItems.map(serializeProduct)
             }
         };
 
     } catch (error: any) {
         throw new Error(`ERROR_FETCHING_DEVICE_CONFIG: ${error.message}`);
+    }
+};
+
+/* ================================
+   UPDATE DISPLAY CONFIG
+================================ */
+const updateDeviceConfigService = async ({
+    deviceId,
+    businessId,
+    userId,
+    orientation,
+    menuTheme,
+    themeColor,
+    displayContentMode,
+    selectedCategoryId,
+    selectedMediaId,
+    transitionStyle,
+    transitionSpeedSeconds,
+    autoScrollIntervalSeconds
+}: DeviceConfigInput) => {
+    try {
+        if (!deviceId) {
+            throw new Error("DEVICE_ID_REQUIRED");
+        }
+
+        const existingDevice = await prisma.device.findFirst({
+            where: {
+                id: deviceId,
+                businessId,
+                isActive: true
+            }
+        });
+
+        if (!existingDevice) {
+            throw new Error("DEVICE_NOT_FOUND");
+        }
+
+        const updateData: Record<string, string | number | null> = {};
+
+        if (orientation !== undefined) {
+            if (!allowedOrientations.has(orientation)) {
+                throw new Error("INVALID_ORIENTATION");
+            }
+            updateData.orientation = orientation;
+        }
+
+        const normalizedMenuTheme = normalizeDisplaySetting(menuTheme);
+        const normalizedThemeColor = normalizeDisplaySetting(themeColor);
+        const normalizedTransitionStyle = normalizeDisplaySetting(transitionStyle);
+
+        if (normalizedMenuTheme !== undefined) {
+            if (!allowedMenuThemes.has(normalizedMenuTheme)) {
+                throw new Error("INVALID_MENU_THEME");
+            }
+            updateData.menuTheme = normalizedMenuTheme;
+        }
+
+        if (normalizedThemeColor !== undefined) {
+            if (!allowedThemeColors.has(normalizedThemeColor)) {
+                throw new Error("INVALID_THEME_COLOR");
+            }
+            updateData.themeColor = normalizedThemeColor;
+        }
+
+        if (displayContentMode !== undefined) {
+            if (!allowedContentModes.has(displayContentMode)) {
+                throw new Error("INVALID_DISPLAY_CONTENT_MODE");
+            }
+            updateData.displayContentMode = displayContentMode;
+        }
+
+        if (selectedCategoryId !== undefined) {
+            if (
+                selectedCategoryId !== null &&
+                (!Number.isInteger(selectedCategoryId) || selectedCategoryId < 1)
+            ) {
+                throw new Error("INVALID_SELECTED_CATEGORY");
+            }
+            updateData.selectedCategoryId = selectedCategoryId;
+        }
+
+        if (selectedMediaId !== undefined) {
+            if (
+                selectedMediaId !== null &&
+                (!Number.isInteger(selectedMediaId) || selectedMediaId < 1)
+            ) {
+                throw new Error("INVALID_SELECTED_MEDIA");
+            }
+            updateData.selectedMediaId = selectedMediaId;
+        }
+
+        if (normalizedTransitionStyle !== undefined) {
+            if (!allowedTransitionStyles.has(normalizedTransitionStyle)) {
+                throw new Error("INVALID_TRANSITION_STYLE");
+            }
+            updateData.transitionStyle = normalizedTransitionStyle;
+        }
+
+        if (transitionSpeedSeconds !== undefined) {
+            if (
+                typeof transitionSpeedSeconds !== "number" ||
+                transitionSpeedSeconds < 0.1 ||
+                transitionSpeedSeconds > 2
+            ) {
+                throw new Error("INVALID_TRANSITION_SPEED");
+            }
+            updateData.transitionSpeedSeconds = transitionSpeedSeconds;
+        }
+
+        if (autoScrollIntervalSeconds !== undefined) {
+            if (
+                !Number.isInteger(autoScrollIntervalSeconds) ||
+                autoScrollIntervalSeconds < 3 ||
+                autoScrollIntervalSeconds > 60
+            ) {
+                throw new Error("INVALID_AUTO_SCROLL_INTERVAL");
+            }
+            updateData.autoScrollIntervalSeconds = autoScrollIntervalSeconds;
+        }
+
+        const updatedDevice = await (prisma.device as any).update({
+            where: { id: deviceId },
+            data: updateData
+        });
+
+        logActivity(
+            userId,
+            businessId,
+            "UPDATED_DEVICE_CONFIG",
+            `Updated display settings for ${updatedDevice.name || updatedDevice.deviceCode}`
+        );
+
+        sendRealtimeUpdate(
+            businessId,
+            "DEVICE_CONFIG_UPDATED",
+            updatedDevice.deviceCode
+        );
+
+        return {
+            id: updatedDevice.id,
+            name: updatedDevice.name,
+            deviceCode: updatedDevice.deviceCode,
+            mode: updatedDevice.displayMode,
+            orientation: updatedDevice.orientation ?? "normal",
+            menuTheme: updatedDevice.menuTheme ?? "light",
+            themeColor: updatedDevice.themeColor ?? "gold",
+            displayContentMode: updatedDevice.displayContentMode ?? "allCategories",
+            selectedCategoryId: updatedDevice.selectedCategoryId ?? null,
+            selectedMediaId: updatedDevice.selectedMediaId ?? null,
+            transitionStyle: updatedDevice.transitionStyle ?? "fade",
+            transitionSpeedSeconds: updatedDevice.transitionSpeedSeconds ?? 0.5,
+            autoScrollIntervalSeconds:
+                updatedDevice.autoScrollIntervalSeconds ?? 8,
+            online: true,
+            createdAt: updatedDevice.createdAt
+        };
+
+    } catch (error: any) {
+        throw new Error(`ERROR_UPDATING_DEVICE_CONFIG: ${error.message}`);
     }
 };
 
@@ -277,5 +598,6 @@ export {
     pairDeviceByCodeService,
     listDevicesByBusinessService,
     getDeviceConfigByCodeService,
+    updateDeviceConfigService,
     deleteDeviceService
 };
