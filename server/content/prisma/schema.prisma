@@ -123,6 +123,7 @@ model Product {
   name              String          @db.VarChar(50)
   description       String?         @db.VarChar(200)
   price             Decimal         @default(0.00)
+  priceVariants     Json?
   vegFlag           VegType?         @default(veg)
   imageUrl          String?
   isAvailable       Boolean         @default(true)

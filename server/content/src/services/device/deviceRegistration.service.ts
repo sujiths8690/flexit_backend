@@ -86,6 +86,7 @@ const serializeProduct = (product: any) => {
         name: product.name,
         description: product.description,
         price: Number(product.price),
+        priceVariants: product.priceVariants ?? [],
         imageUrl: product.imageUrl,
         category: product.vegFlag === "non_veg" ? "nonVeg" : "veg",
         categoryId: category.id,

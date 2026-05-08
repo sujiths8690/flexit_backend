@@ -9,6 +9,7 @@ interface ProductInput{
     name: string;
     description?: string;
     price?: number;
+    priceVariants?: { label: string; price: number }[];
     vegFlag?: VegType;
     imageUrl?: string;
     categoryId:number;
@@ -22,6 +23,7 @@ const createProductService= async({
     name,
     description,
     price,
+    priceVariants,
     vegFlag="veg",
     categoryId,
     imageUrl,
@@ -49,6 +51,7 @@ const createProductService= async({
                 name,
                 description,
                 price,
+                priceVariants: priceVariants ?? undefined,
                 vegFlag,
                 categoryId,
                 imageUrl,
@@ -71,6 +74,7 @@ const createProductService= async({
             description: product.description,   // 🔥 ADD
             imageUrl: product.imageUrl,         // 🔥 ADD
             price: product.price,
+            priceVariants: (product as any).priceVariants,
             vegFlag: product.vegFlag,
             categoryId: product.categoryId,
             isAvailable: product.isAvailable,
@@ -93,6 +97,7 @@ const updateProductService= async({
     name,
     description,
     price,
+    priceVariants,
     vegFlag,
     categoryId,
     imageUrl,
@@ -122,6 +127,7 @@ const updateProductService= async({
         if (name !== undefined) updateData.name = name;
         if (description !== undefined) updateData.description = description;
         if (price !== undefined) updateData.price = price;
+        if (priceVariants !== undefined) updateData.priceVariants = priceVariants;
         if (vegFlag !== undefined) updateData.vegFlag = vegFlag;
         if (categoryId !== undefined) updateData.categoryId = categoryId;
         if (imageUrl !== undefined) updateData.imageUrl = imageUrl;
@@ -150,6 +156,7 @@ const updateProductService= async({
             description: updatedProduct.description,   // 🔥 ADD
             imageUrl: updatedProduct.imageUrl,         // 🔥 ADD
             price: updatedProduct.price,
+            priceVariants: (updatedProduct as any).priceVariants,
             vegFlag: updatedProduct.vegFlag,
             categoryId: updatedProduct.categoryId,
             isAvailable: updatedProduct.isAvailable,
