@@ -13,6 +13,12 @@ model Business {
   name              String
   mobile            String?
   email             String?
+  logoUrl           String?
+  showPrice         Boolean          @default(true)
+  showDescription   Boolean          @default(true)
+  showLogo          Boolean          @default(true)
+  showCompanyName   Boolean          @default(true)
+  showProductImage  Boolean          @default(true)
   isActive          Boolean          @default(true)
   address           String?           @db.VarChar(100)
 

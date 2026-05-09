@@ -14,6 +14,7 @@ interface DeviceConfigInput {
     deviceId: number;
     businessId: number;
     userId: number;
+    name?: string;
     orientation?: string;
     menuTheme?: string;
     themeColor?: string;
@@ -58,6 +59,32 @@ const allowedTransitionStyles = new Set(["fade", "slide", "zoom", "flip"]);
 
 const normalizeDisplaySetting = (value?: string) =>
     typeof value === "string" ? value.trim().toLowerCase() : value;
+
+const normalizeDeviceName = (value?: string | null) =>
+    typeof value === "string" ? value.trim() : "";
+
+const findDuplicateDeviceName = async (
+    businessId: number,
+    name: string,
+    excludeDeviceId?: number
+) => {
+    const normalized = name.trim().toLowerCase();
+    const devices = await prisma.device.findMany({
+        where: {
+            businessId,
+            isActive: true,
+            ...(excludeDeviceId ? { id: { not: excludeDeviceId } } : {})
+        },
+        select: {
+            id: true,
+            name: true
+        }
+    });
+
+    return devices.find(
+        (device) => (device.name ?? "").trim().toLowerCase() === normalized
+    );
+};
 
 const mediaUrl = (url: string) => {
     const normalized = url.replace(/\\/g, "/");
@@ -189,6 +216,7 @@ const pairDeviceByCodeService = async ({
             throw new Error("BUSINESS_NOT_FOUND");
         }
 
+        const normalizedName = normalizeDeviceName(name);
         const existingDevice = await prisma.device.findUnique({
             where: { deviceCode: normalizedCode }
         });
@@ -197,16 +225,28 @@ const pairDeviceByCodeService = async ({
             throw new Error("DEVICE_ALREADY_PAIRED");
         }
 
+        const duplicateName = normalizedName
+            ? await findDuplicateDeviceName(
+                businessId,
+                normalizedName,
+                existingDevice?.id
+            )
+            : null;
+
+        if (duplicateName) {
+            throw new Error("DEVICE_NAME_ALREADY_EXISTS");
+        }
+
         const device = existingDevice
             ? await prisma.device.update({
                 where: { id: existingDevice.id },
                 data: {
-                    name: name?.trim() || existingDevice.name || `Display ${normalizedCode.slice(0, 4)}`
+                    name: normalizedName || existingDevice.name || `Display ${normalizedCode.slice(0, 4)}`
                 }
             })
             : await prisma.device.create({
                 data: {
-                    name: name?.trim() || `Display ${normalizedCode.slice(0, 4)}`,
+                    name: normalizedName || `Display ${normalizedCode.slice(0, 4)}`,
                     businessId,
                     deviceCode: normalizedCode
                 }
@@ -356,7 +396,7 @@ const getDeviceConfigByCodeService = async (deviceCode: string) => {
             deviceCode: device.deviceCode,
             isPaired: true,
             businessName: device.business.name,
-            businessLogoUrl: null,
+            businessLogoUrl: (device.business as any).logoUrl ?? null,
             orientation: (device as any).orientation ?? "normal",
             menuTheme: (device as any).menuTheme ?? "light",
             themeColor: (device as any).themeColor ?? "gold",
@@ -371,6 +411,11 @@ const getDeviceConfigByCodeService = async (deviceCode: string) => {
                 transitionStyle,
                 transitionSpeedSeconds,
                 autoScrollIntervalSeconds: interval,
+                showPrice: (device.business as any).showPrice ?? true,
+                showDescription: (device.business as any).showDescription ?? true,
+                showLogo: (device.business as any).showLogo ?? true,
+                showCompanyName: (device.business as any).showCompanyName ?? true,
+                showProductImage: (device.business as any).showProductImage ?? true,
                 mediaItems: mediaItems.map(serializeMedia),
                 menuItems: menuItems.map(serializeProduct)
             }
@@ -388,6 +433,7 @@ const updateDeviceConfigService = async ({
     deviceId,
     businessId,
     userId,
+    name,
     orientation,
     menuTheme,
     themeColor,
@@ -416,6 +462,25 @@ const updateDeviceConfigService = async ({
         }
 
         const updateData: Record<string, string | number | null> = {};
+        const normalizedName = normalizeDeviceName(name);
+
+        if (name !== undefined) {
+            if (!normalizedName) {
+                throw new Error("DEVICE_NAME_REQUIRED");
+            }
+
+            const duplicateName = await findDuplicateDeviceName(
+                businessId,
+                normalizedName,
+                deviceId
+            );
+
+            if (duplicateName) {
+                throw new Error("DEVICE_NAME_ALREADY_EXISTS");
+            }
+
+            updateData.name = normalizedName;
+        }
 
         if (orientation !== undefined) {
             if (!allowedOrientations.has(orientation)) {

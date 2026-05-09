@@ -105,6 +105,10 @@ export const pairDeviceController = async (req: Request, res: Response) => {
             return errorResponse(res, error.message, HTTP_STATUS.CONFLICT);
         }
 
+        if (error.message.includes("DEVICE_NAME_ALREADY_EXISTS")) {
+            return errorResponse(res, error.message, HTTP_STATUS.CONFLICT);
+        }
+
         return errorResponse(
             res,
             error.message,
@@ -188,6 +192,7 @@ export const updateDeviceConfigController = async (req: Request, res: Response) 
         }
 
         const {
+            name,
             orientation,
             menuTheme,
             themeColor,
@@ -203,6 +208,7 @@ export const updateDeviceConfigController = async (req: Request, res: Response) 
             deviceId,
             businessId: req.user!.businessId,
             userId: req.user!.userId,
+            name,
             orientation,
             menuTheme,
             themeColor,
@@ -224,9 +230,14 @@ export const updateDeviceConfigController = async (req: Request, res: Response) 
     } catch (error: any) {
         if (
             error.message.includes("DEVICE_NOT_FOUND") ||
-            error.message.includes("INVALID_")
+            error.message.includes("INVALID_") ||
+            error.message.includes("DEVICE_NAME_REQUIRED")
         ) {
             return errorResponse(res, error.message, HTTP_STATUS.BAD_REQUEST);
+        }
+
+        if (error.message.includes("DEVICE_NAME_ALREADY_EXISTS")) {
+            return errorResponse(res, error.message, HTTP_STATUS.CONFLICT);
         }
 
         return errorResponse(

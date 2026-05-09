@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { changePasswordService, createUserService, disableUserService, enableUserService, getUserService, requestPasswordResetService, updateUserService } from "../../services/user/user.service";
+import { changePasswordService, createUserService, disableUserService, enableUserService, getOwnProfileService, getUserService, requestPasswordResetService, resetPasswordWithTokenService, updateOwnProfileService, updateUserService, verifyCurrentPasswordService } from "../../services/user/user.service";
 import { Role } from "@prisma/client";
 import {errorResponse, successResponse} from "../../utils/response.helper"
 import { HTTP_STATUS } from "../../utils/httpStatus";
@@ -163,6 +163,69 @@ export const updateUser= async(
     }
 };
 
+export const getOwnProfile = async(req: Request, res: Response)=> {
+    try{
+        const user = await getOwnProfileService(req.user!.userId);
+
+        return successResponse(
+            res,
+            user,
+            "Profile fetched successfully",
+            HTTP_STATUS.OK
+        );
+    }catch(err:any){
+        return errorResponse(
+            res,
+            "Failed to fetch profile",
+            HTTP_STATUS.INTERNAL_SERVER_ERROR
+        );
+    }
+};
+
+export const updateOwnProfile = async(req: Request, res: Response)=> {
+    try{
+        const {
+            email,
+            username,
+            firstName,
+            lastName,
+            phone,
+            profileImageUrl,
+        } = req.body;
+
+        const user = await updateOwnProfileService({
+            userId: req.user!.userId,
+            email,
+            username,
+            firstName,
+            lastName,
+            phone,
+            profileImageUrl,
+        });
+
+        return successResponse(
+            res,
+            user,
+            "Profile updated successfully",
+            HTTP_STATUS.OK
+        );
+    }catch(err:any){
+        if(err.message === "EMAIL_ALREADY_EXISTS" || err.message === "USERNAME_ALREADY_EXISTS"){
+            return errorResponse(
+                res,
+                err.message,
+                HTTP_STATUS.CONFLICT
+            );
+        }
+
+        return errorResponse(
+            res,
+            "Profile update failed",
+            HTTP_STATUS.INTERNAL_SERVER_ERROR
+        );
+    }
+};
+
 export const disableUser= async(
     req: Request, res: Response
 )=>{
@@ -319,6 +382,49 @@ export const changePassword= async(
     }
 };
 
+export const verifyCurrentPassword= async(
+    req:Request, res: Response
+)=>{
+    try{
+        const{currentPassword} = req.body;
+
+        if(!currentPassword){
+            return errorResponse(
+                res,
+                "Current password is required",
+                HTTP_STATUS.BAD_REQUEST
+            );
+        }
+
+        await verifyCurrentPasswordService(
+            req.user!.userId,
+            currentPassword
+        );
+
+        return successResponse(
+            res,
+            null,
+            "Password verified",
+            HTTP_STATUS.OK
+        );
+
+    }catch(err:any){
+        if(err.message === "INVALID_CURRENT_PASSWORD"){
+            return errorResponse(
+                res,
+                "Invalid current password!",
+                HTTP_STATUS.BAD_REQUEST
+            );
+        }
+
+        return errorResponse(
+            res,
+            "Password verification failed",
+            HTTP_STATUS.INTERNAL_SERVER_ERROR
+        );
+    }
+};
+
 export const passwordReset= async(
     req: Request, res: Response
 )=>{
@@ -342,9 +448,59 @@ export const passwordReset= async(
             HTTP_STATUS.OK
         );
     }catch(err:any){
+        if (
+            err.message === "EMAIL_SERVICE_NOT_CONFIGURED" ||
+            err.message === "EMAIL_SERVICE_SEND_FAILED"
+        ) {
+            return errorResponse(
+                res,
+                "Email service is not configured correctly. Use a Gmail App Password, not your normal Gmail password.",
+                HTTP_STATUS.INTERNAL_SERVER_ERROR
+            );
+        }
+
         return errorResponse(
             res,
             "Something went wrong",
+            HTTP_STATUS.INTERNAL_SERVER_ERROR
+        );
+    }
+};
+
+export const resetPasswordWithToken= async(
+    req: Request, res: Response
+)=>{
+    try{
+        const {token, newPassword} = req.body;
+
+        if(!token || !newPassword){
+            return errorResponse(
+                res,
+                "Token and new password are required",
+                HTTP_STATUS.BAD_REQUEST
+            );
+        }
+
+        await resetPasswordWithTokenService(token, newPassword);
+
+        return successResponse(
+            res,
+            null,
+            "Password reset successfully",
+            HTTP_STATUS.OK
+        );
+    }catch(err:any){
+        if(err.message === "INVALID_OR_EXPIRED_TOKEN"){
+            return errorResponse(
+                res,
+                "Reset link is invalid or expired",
+                HTTP_STATUS.BAD_REQUEST
+            );
+        }
+
+        return errorResponse(
+            res,
+            "Password reset failed",
             HTTP_STATUS.INTERNAL_SERVER_ERROR
         );
     }

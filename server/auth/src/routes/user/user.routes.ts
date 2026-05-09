@@ -3,10 +3,14 @@ import {
   createUser,
   getUser,
   updateUser,
+  getOwnProfile,
+  updateOwnProfile,
   disableUser,
   enableUser,
   changePassword,
+  verifyCurrentPassword,
   passwordReset,
+  resetPasswordWithToken,
 } from "../../controllers/user/user.controller";
 
 import { authenticate } from "../../middleware/auth";
@@ -14,6 +18,18 @@ import { allowRoles } from "../../middleware/role";
 import { Role } from "@prisma/client";
 
 const router = Router();
+
+router.get(
+  "/me",
+  authenticate,
+  getOwnProfile
+);
+
+router.patch(
+  "/me",
+  authenticate,
+  updateOwnProfile
+);
 
 /**
  * ----------------------------------------
@@ -74,6 +90,12 @@ router.post(
   changePassword
 );
 
+router.post(
+  "/verify-password",
+  authenticate,
+  verifyCurrentPassword
+);
+
 /**
  * ----------------------------------------
  * Public Routes
@@ -84,6 +106,11 @@ router.post(
 router.post(
   "/forgot-password",
   passwordReset
+);
+
+router.post(
+  "/reset-password",
+  resetPasswordWithToken
 );
 
 export default router;

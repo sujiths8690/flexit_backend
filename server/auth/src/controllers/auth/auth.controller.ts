@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 
-import { linkBusinessService, LoginUser, registerService } from "../../services/auth/auth.services";
+import { isUsernameAvailableService, linkBusinessService, LoginUser, registerService } from "../../services/auth/auth.services";
 import { errorResponse, successResponse } from "../../utils/response.helper";
 import { HTTP_STATUS } from "../../utils/httpStatus";
 
@@ -9,18 +9,21 @@ import { HTTP_STATUS } from "../../utils/httpStatus";
 ================================ */
 export const register = async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const { email, username, firstName, lastName, password } = req.body;
 
-    if (!email || !password) {
+    if (!email || !username || !firstName || !lastName || !password) {
       return errorResponse(
         res,
-        "Email and password are required",
+        "Email, username, first name, last name and password are required",
         HTTP_STATUS.BAD_REQUEST
       );
     }
 
     const result = await registerService({
       email,
+      username,
+      firstName,
+      lastName,
       password,
     });
 
@@ -37,6 +40,14 @@ export const register = async (req: Request, res: Response) => {
       return errorResponse(
         res,
         "Email already exists",
+        HTTP_STATUS.CONFLICT
+      );
+    }
+
+    if (err.message === "USERNAME_ALREADY_EXISTS") {
+      return errorResponse(
+        res,
+        "Username already exists",
         HTTP_STATUS.CONFLICT
       );
     }
@@ -60,7 +71,7 @@ export const login = async (req: Request, res: Response) => {
     if (!email || !password) {
       return errorResponse(
         res,
-        "Email and password are required",
+        "Email or username and password are required",
         HTTP_STATUS.BAD_REQUEST
       );
     }
@@ -110,5 +121,34 @@ export const linkBusiness = async (req: Request, res: Response) => {
 
   } catch (err) {
     return res.status(500).json({ error: "Failed to link business" });
+  }
+};
+
+export const usernameAvailable = async (req: Request, res: Response) => {
+  try {
+    const username = String(req.query.username || "").trim();
+
+    if (!username) {
+      return errorResponse(
+        res,
+        "Username is required",
+        HTTP_STATUS.BAD_REQUEST
+      );
+    }
+
+    const available = await isUsernameAvailableService(username);
+
+    return successResponse(
+      res,
+      { available },
+      available ? "Username is available" : "Username already exists",
+      HTTP_STATUS.OK
+    );
+  } catch (err: any) {
+    return errorResponse(
+      res,
+      err.message || "Username check failed",
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
+    );
   }
 };

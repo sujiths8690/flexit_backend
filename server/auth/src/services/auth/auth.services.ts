@@ -10,17 +10,28 @@ interface LoginResult{
     user:{
         id: number;
         email:string;
+        username: string;
+        firstName: string | null;
+        lastName: string | null;
+        phone: string | null;
+        profileImageUrl: string | null;
         role: Role;
     };
 }
 
 interface RegisterInput {
   email: string;
+  username: string;
+  firstName: string;
+  lastName: string;
   password: string;
 }
 
 export const registerService = async ({
   email,
+  username,
+  firstName,
+  lastName,
   password
 }: RegisterInput) => {
 
@@ -34,12 +45,22 @@ export const registerService = async ({
         throw new Error("EMAIL_ALREADY_EXISTS");
     }
 
+    const existingUsername = await prisma.user.findUnique({
+        where: { username },
+    });
+
+    if (existingUsername) {
+        throw new Error("USERNAME_ALREADY_EXISTS");
+    }
+
     const hashedPassword = await bcrypt.hash(password, 12);
 
     const user = await prisma.user.create({
         data: {
             email,
-            username: email,
+            username,
+            firstName,
+            lastName,
             passwordHash: hashedPassword,
             role: Role.ADMIN,
             businessId: null,
@@ -61,6 +82,11 @@ export const registerService = async ({
         user: {
         id: user.id,
         email: user.email,
+        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        profileImageUrl: user.profileImageUrl,
         role: user.role,
         },
     };
@@ -69,14 +95,23 @@ export const registerService = async ({
 }
 };
 
+export const isUsernameAvailableService = async (username: string) => {
+  const user = await prisma.user.findUnique({
+    where: { username },
+  });
+
+  return !user;
+};
 
 export const LoginUser = async (
-  email: string,
+  credential: string,
   password: string,
 ): Promise<LoginResult & { business: any }> => {
 
-  const user = await prisma.user.findUnique({
-    where: { email },
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [{ email: credential }, { username: credential }],
+    },
   });
 
   if (!user) throw new Error("INVALID_CREDENTIALS");
@@ -116,6 +151,11 @@ export const LoginUser = async (
     user: {
       id: user.id,
       email: user.email!,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phone: user.phone,
+      profileImageUrl: user.profileImageUrl,
       role: user.role,
     },
     business, // ✅ now coming from content service

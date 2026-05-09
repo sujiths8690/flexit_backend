@@ -77,6 +77,7 @@ const createProductService= async({
             priceVariants: (product as any).priceVariants,
             vegFlag: product.vegFlag,
             categoryId: product.categoryId,
+            position: product.position,
             isAvailable: product.isAvailable,
         }
 
@@ -159,6 +160,7 @@ const updateProductService= async({
             priceVariants: (updatedProduct as any).priceVariants,
             vegFlag: updatedProduct.vegFlag,
             categoryId: updatedProduct.categoryId,
+            position: updatedProduct.position,
             isAvailable: updatedProduct.isAvailable,
         }
 

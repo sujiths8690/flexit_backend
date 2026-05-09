@@ -15,13 +15,30 @@ import { HTTP_STATUS } from "../../utils/httpStatus";
 ================================ */
 export const createBusinessController = async (req: Request, res: Response) => {
   try {
-    const { name, address, email, mobile } = req.body;
+    const {
+      name,
+      address,
+      email,
+      mobile,
+      logoUrl,
+      showPrice,
+      showDescription,
+      showLogo,
+      showCompanyName,
+      showProductImage
+    } = req.body;
 
     const business = await createBusinessService({
       name,
       address,
       email,
-      mobile
+      mobile,
+      logoUrl,
+      showPrice,
+      showDescription,
+      showLogo,
+      showCompanyName,
+      showProductImage
     });
 
     return successResponse(
@@ -73,14 +90,31 @@ export const getBusinessByIdController = async (req: Request, res: Response) => 
 export const updateBusinessController = async (req: Request, res: Response) => {
   try {
     const id = Number(req.params.id);
-    const { name, address, email, mobile } = req.body;
+    const {
+      name,
+      address,
+      email,
+      mobile,
+      logoUrl,
+      showPrice,
+      showDescription,
+      showLogo,
+      showCompanyName,
+      showProductImage
+    } = req.body;
 
     const business = await updateBusinessService({
       id,
       name,
       address,
       email,
-      mobile
+      mobile,
+      logoUrl,
+      showPrice,
+      showDescription,
+      showLogo,
+      showCompanyName,
+      showProductImage
     });
 
     return successResponse(

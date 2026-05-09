@@ -30,6 +30,18 @@ app.use(
 );
 
 app.use(
+  "/api/users",
+  createProxyMiddleware({
+    target: authTarget,
+    changeOrigin: true,
+    pathRewrite: {
+      "^/": "/api/users/",
+    },
+    logLevel: "debug",
+  })
+);
+
+app.use(
   "/api/content",
   createProxyMiddleware({
     target: contentTarget,
