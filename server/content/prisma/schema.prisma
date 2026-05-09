@@ -25,6 +25,7 @@ model Business {
   categories        Category[]
   products          Product[]
   combos            ComboOffer[]
+  todaysStars       TodaysStar[]
   settings          Setting[]
   blackList         BlackList[]
   devices           Device[]
@@ -142,7 +143,7 @@ model Product {
   business          Business        @relation(fields: [businessId], references: [id])
 
   comboItems        ComboOfferItem[]
-  todaysStar        TodaysStar?
+  todaysStar        TodaysStar[]
   todaysOffer       TodaysOffer?
 
   isActive          Boolean         @default(true)
@@ -154,6 +155,8 @@ model ComboOffer {
   description       String?         @db.VarChar(200)
   price             Decimal?
   imageUrl          String?
+  startDate         DateTime?
+  endDate           DateTime?
   isActive          Boolean         @default(true)
 
   businessId        Int
@@ -165,6 +168,8 @@ model ComboOffer {
 model ComboOfferItem {
   id                Int             @id @default(autoincrement())
   quantity          Int             @default(1)
+  variantLabel      String?         @db.VarChar(50)
+  variantPrice      Decimal?
 
   comboId           Int
   combo             ComboOffer      @relation(fields: [comboId], references: [id])
@@ -175,9 +180,16 @@ model ComboOfferItem {
 
 model TodaysStar {
   id                Int             @id @default(autoincrement())
+  starDate          DateTime
+  createdAt         DateTime        @default(now())
 
-  productId         Int             @unique
+  businessId        Int
+  business          Business        @relation(fields: [businessId], references: [id])
+
+  productId         Int
   product           Product         @relation(fields: [productId], references: [id])
+
+  @@unique([businessId, starDate, productId])
 }
 
 model TodaysOffer {

@@ -9,6 +9,7 @@ import productRoutes from "./routes/product/product.routes";
 import categoryRoutes from "./routes/category/category.routes";
 import deviceRoutes from "./routes/device/deviceRegistration.routes";
 import mediaRoutes from "./routes/media/media.routes";
+import contentFeatureRoutes from "./routes/contentFeature/contentFeature.routes";
 
 dotenv.config();
 
@@ -40,6 +41,7 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/device", deviceRoutes);
 app.use("/api/content/device", deviceRoutes);
 app.use("/api/media", mediaRoutes);
+app.use("/api/menu-content", contentFeatureRoutes);
 
 //root Route
 app.get('/', (req,res)=>{

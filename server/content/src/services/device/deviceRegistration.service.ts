@@ -53,7 +53,9 @@ const allowedContentModes = new Set([
     "allCategories",
     "category",
     "allMedia",
-    "media"
+    "media",
+    "comboOffers",
+    "todaysStar"
 ]);
 const allowedTransitionStyles = new Set(["fade", "slide", "zoom", "flip"]);
 
@@ -86,7 +88,8 @@ const findDuplicateDeviceName = async (
     );
 };
 
-const mediaUrl = (url: string) => {
+const mediaUrl = (url?: string | null) => {
+    if (!url) return null;
     const normalized = url.replace(/\\/g, "/");
     return normalized.startsWith("http") ? normalized : `/${normalized}`;
 };
@@ -108,18 +111,19 @@ const productCategory = (product: any) => {
 
 const serializeProduct = (product: any) => {
     const category = productCategory(product);
+    const isTodaysStar = Boolean(product.isTodaysStar);
     return {
         id: product.id.toString(),
         name: product.name,
         description: product.description,
         price: Number(product.price),
         priceVariants: product.priceVariants ?? [],
-        imageUrl: product.imageUrl,
-        category: product.vegFlag === "non_veg" ? "nonVeg" : "veg",
+        imageUrl: mediaUrl(product.imageUrl),
+        category: isTodaysStar ? "todaysStar" : product.vegFlag === "non_veg" ? "nonVeg" : "veg",
         categoryId: category.id,
         categoryName: category.name,
         isAvailable: product.isAvailable,
-        isFeatured: false,
+        isFeatured: isTodaysStar,
         tags: []
     };
 };
@@ -130,6 +134,39 @@ const serializeMedia = (media: any) => ({
     url: mediaUrl(media.url),
     type: mediaType(media.type)
 });
+
+const serializeComboOffer = (combo: any) => {
+    const comboItems = (combo.items ?? []).map((item: any) => ({
+        id: item.id,
+        quantity: item.quantity ?? 1,
+        variantLabel: item.variantLabel ?? null,
+        variantPrice: item.variantPrice === null || item.variantPrice === undefined ? null : Number(item.variantPrice),
+        product: item.product ? serializeProduct(item.product) : null
+    })).filter((item: any) => item.product !== null);
+    const originalPrice = (combo.items ?? []).reduce(
+        (total: number, item: any) =>
+            total + Number(item.variantPrice ?? item.product?.price ?? 0) * Number(item.quantity ?? 1),
+        0
+    );
+
+    return {
+        id: `combo-${combo.id}`,
+        name: combo.name,
+        description: combo.description,
+        price: combo.price === null || combo.price === undefined ? 0 : Number(combo.price),
+        priceVariants: [],
+        imageUrl: mediaUrl(combo.imageUrl),
+        category: "all",
+        categoryId: null,
+        categoryName: "Combo Offers",
+        isAvailable: true,
+        isFeatured: true,
+        tags: ["combo"],
+        originalPrice,
+        comboItems,
+        items: comboItems
+    };
+};
 
 /* ================================
    REGISTER DEVICE
@@ -363,6 +400,8 @@ const getDeviceConfigByCodeService = async (deviceCode: string) => {
         const transitionSpeedSeconds = (device as any).transitionSpeedSeconds ?? 0.5;
         const interval = (device as any).autoScrollIntervalSeconds ?? 8;
         const isMediaMode = contentMode === "allMedia" || contentMode === "media";
+        const isComboMode = contentMode === "comboOffers";
+        const isTodaysStarMode = contentMode === "todaysStar";
         const mediaWhere: any = { businessId: device.businessId };
         if (contentMode === "media" && selectedMediaId) {
             mediaWhere.id = selectedMediaId;
@@ -375,22 +414,48 @@ const getDeviceConfigByCodeService = async (deviceCode: string) => {
         if (contentMode === "category" && selectedCategoryId) {
             productWhere.categoryId = selectedCategoryId;
         }
-        const [mediaItems, menuItems] = isMediaMode
-            ? [
-                await prisma.media.findMany({
-                    where: mediaWhere,
-                    orderBy: { createdAt: "desc" }
-                }),
-                []
-            ]
-            : [
-                [],
-                await prisma.product.findMany({
-                    where: productWhere,
-                    include: { category: true },
-                    orderBy: [{ category: { position: "asc" } }, { position: "asc" }]
-                })
-            ];
+        const starDate = new Date();
+        starDate.setHours(0, 0, 0, 0);
+        const mediaItems = isMediaMode
+            ? await prisma.media.findMany({
+                where: mediaWhere,
+                orderBy: { createdAt: "desc" }
+            })
+            : [];
+        const todaysStars = !isMediaMode
+            ? await prisma.todaysStar.findMany({
+                where: { businessId: device.businessId, starDate },
+                include: { product: { include: { category: true } } },
+                orderBy: { createdAt: "asc" }
+            })
+            : [];
+        const todaysStarIds = new Set(todaysStars.map((star) => star.productId));
+        let menuItems: any[] = [];
+        try {
+            menuItems = isMediaMode
+                ? []
+                : isComboMode
+                    ? await prisma.comboOffer.findMany({
+                        where: { businessId: device.businessId, isActive: true },
+                        include: {
+                            items: {
+                                include: { product: { include: { category: true } } },
+                                orderBy: { id: "asc" }
+                            }
+                        },
+                        orderBy: { id: "desc" }
+                    })
+                : isTodaysStarMode
+                    ? todaysStars.map((star) => star.product)
+                    : await prisma.product.findMany({
+                        where: productWhere,
+                        include: { category: true },
+                        orderBy: [{ category: { position: "asc" } }, { position: "asc" }]
+                    });
+        } catch (error) {
+            console.error("DISPLAY_CONTENT_FETCH_FAILED", error);
+            menuItems = [];
+        }
 
         return {
             deviceCode: device.deviceCode,
@@ -417,7 +482,14 @@ const getDeviceConfigByCodeService = async (deviceCode: string) => {
                 showCompanyName: (device.business as any).showCompanyName ?? true,
                 showProductImage: (device.business as any).showProductImage ?? true,
                 mediaItems: mediaItems.map(serializeMedia),
-                menuItems: menuItems.map(serializeProduct)
+                menuItems: isComboMode
+                    ? menuItems.map(serializeComboOffer)
+                    : menuItems.map((product) =>
+                        serializeProduct({
+                            ...product,
+                            isTodaysStar: todaysStarIds.has(product.id)
+                        })
+                    )
             }
         };
 
