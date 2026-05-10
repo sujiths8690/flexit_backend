@@ -50,6 +50,15 @@ model Device {
   transitionStyle String     @default("fade")
   transitionSpeedSeconds Float @default(0.5)
   autoScrollIntervalSeconds Int @default(8)
+  showPrice         Boolean   @default(true)
+  showDescription   Boolean   @default(true)
+  showLogo          Boolean   @default(true)
+  showCompanyName   Boolean   @default(true)
+  showProductImage  Boolean   @default(true)
+  headingFontScale  Float     @default(1.0)
+  nameFontScale     Float     @default(1.0)
+  descriptionFontScale Float  @default(1.0)
+  priceFontScale    Float     @default(1.0)
 
   businessId    Int
   business      Business  @relation(fields: [businessId], references: [id])

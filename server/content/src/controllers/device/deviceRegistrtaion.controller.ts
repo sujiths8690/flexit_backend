@@ -206,7 +206,16 @@ export const updateDeviceConfigController = async (req: Request, res: Response) 
             selectedMediaId,
             transitionStyle,
             transitionSpeedSeconds,
-            autoScrollIntervalSeconds
+            autoScrollIntervalSeconds,
+            showPrice,
+            showDescription,
+            showLogo,
+            showCompanyName,
+            showProductImage,
+            headingFontScale,
+            nameFontScale,
+            descriptionFontScale,
+            priceFontScale
         } = req.body;
 
         const device = await updateDeviceConfigService({
@@ -223,6 +232,15 @@ export const updateDeviceConfigController = async (req: Request, res: Response) 
             transitionStyle,
             transitionSpeedSeconds,
             autoScrollIntervalSeconds,
+            showPrice,
+            showDescription,
+            showLogo,
+            showCompanyName,
+            showProductImage,
+            headingFontScale,
+            nameFontScale,
+            descriptionFontScale,
+            priceFontScale,
             token: bearerTokenFromRequest(req)
         });
 

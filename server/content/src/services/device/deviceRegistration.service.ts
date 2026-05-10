@@ -28,6 +28,15 @@ interface DeviceConfigInput {
     transitionStyle?: string;
     transitionSpeedSeconds?: number;
     autoScrollIntervalSeconds?: number;
+    showPrice?: boolean;
+    showDescription?: boolean;
+    showLogo?: boolean;
+    showCompanyName?: boolean;
+    showProductImage?: boolean;
+    headingFontScale?: number;
+    nameFontScale?: number;
+    descriptionFontScale?: number;
+    priceFontScale?: number;
     token?: string;
 }
 
@@ -63,12 +72,41 @@ const allowedContentModes = new Set([
     "todaysStar"
 ]);
 const allowedTransitionStyles = new Set(["fade", "slide", "zoom", "flip"]);
+const MIN_FONT_SCALE = 0.8;
+const MAX_FONT_SCALE = 1.2;
 
 const normalizeDisplaySetting = (value?: string) =>
     typeof value === "string" ? value.trim().toLowerCase() : value;
 
 const normalizeDeviceName = (value?: string | null) =>
     typeof value === "string" ? value.trim() : "";
+
+const resolveDeviceBool = (
+    device: any,
+    business: any,
+    key: string,
+    fallback = true
+) => device[key] ?? business?.[key] ?? fallback;
+
+const validateFontScale = (value: number | undefined, field: string) => {
+    if (value === undefined) return undefined;
+    if (typeof value !== "number" || value < MIN_FONT_SCALE || value > MAX_FONT_SCALE) {
+        throw new Error(`INVALID_${field.toUpperCase()}`);
+    }
+    return value;
+};
+
+const deviceDisplaySettings = (device: any, business?: any) => ({
+    showPrice: resolveDeviceBool(device, business, "showPrice"),
+    showDescription: resolveDeviceBool(device, business, "showDescription"),
+    showLogo: resolveDeviceBool(device, business, "showLogo"),
+    showCompanyName: resolveDeviceBool(device, business, "showCompanyName"),
+    showProductImage: resolveDeviceBool(device, business, "showProductImage"),
+    headingFontScale: device.headingFontScale ?? 1,
+    nameFontScale: device.nameFontScale ?? 1,
+    descriptionFontScale: device.descriptionFontScale ?? 1,
+    priceFontScale: device.priceFontScale ?? 1
+});
 
 const findDuplicateDeviceName = async (
     businessId: number,
@@ -334,6 +372,7 @@ const pairDeviceByCodeService = async ({
             transitionSpeedSeconds: (device as any).transitionSpeedSeconds ?? 0.5,
             autoScrollIntervalSeconds:
                 (device as any).autoScrollIntervalSeconds ?? 8,
+            ...deviceDisplaySettings(device),
             online: true,
             createdAt: device.createdAt
         };
@@ -373,6 +412,7 @@ const listDevicesByBusinessService = async (businessId: number) => {
             transitionSpeedSeconds: (device as any).transitionSpeedSeconds ?? 0.5,
             autoScrollIntervalSeconds:
                 (device as any).autoScrollIntervalSeconds ?? 8,
+            ...deviceDisplaySettings(device),
             online: true,
             createdAt: device.createdAt
         }));
@@ -492,11 +532,7 @@ const getDeviceConfigByCodeService = async (deviceCode: string) => {
                 transitionStyle,
                 transitionSpeedSeconds,
                 autoScrollIntervalSeconds: interval,
-                showPrice: (device.business as any).showPrice ?? true,
-                showDescription: (device.business as any).showDescription ?? true,
-                showLogo: (device.business as any).showLogo ?? true,
-                showCompanyName: (device.business as any).showCompanyName ?? true,
-                showProductImage: (device.business as any).showProductImage ?? true,
+                ...deviceDisplaySettings(device, device.business),
                 mediaItems: mediaItems.map(serializeMedia),
                 menuItems: isComboMode
                     ? menuItems.map(serializeComboOffer)
@@ -531,6 +567,15 @@ const updateDeviceConfigService = async ({
     transitionStyle,
     transitionSpeedSeconds,
     autoScrollIntervalSeconds,
+    showPrice,
+    showDescription,
+    showLogo,
+    showCompanyName,
+    showProductImage,
+    headingFontScale,
+    nameFontScale,
+    descriptionFontScale,
+    priceFontScale,
     token
 }: DeviceConfigInput) => {
     try {
@@ -550,7 +595,7 @@ const updateDeviceConfigService = async ({
             throw new Error("DEVICE_NOT_FOUND");
         }
 
-        const updateData: Record<string, string | number | null> = {};
+        const updateData: Record<string, string | number | boolean | null> = {};
         const normalizedName = normalizeDeviceName(name);
 
         if (name !== undefined) {
@@ -652,6 +697,22 @@ const updateDeviceConfigService = async ({
             updateData.autoScrollIntervalSeconds = autoScrollIntervalSeconds;
         }
 
+        if (showPrice !== undefined) updateData.showPrice = Boolean(showPrice);
+        if (showDescription !== undefined) updateData.showDescription = Boolean(showDescription);
+        if (showLogo !== undefined) updateData.showLogo = Boolean(showLogo);
+        if (showCompanyName !== undefined) updateData.showCompanyName = Boolean(showCompanyName);
+        if (showProductImage !== undefined) updateData.showProductImage = Boolean(showProductImage);
+
+        const validatedHeadingScale = validateFontScale(headingFontScale, "heading_font_scale");
+        const validatedNameScale = validateFontScale(nameFontScale, "name_font_scale");
+        const validatedDescriptionScale = validateFontScale(descriptionFontScale, "description_font_scale");
+        const validatedPriceScale = validateFontScale(priceFontScale, "price_font_scale");
+
+        if (validatedHeadingScale !== undefined) updateData.headingFontScale = validatedHeadingScale;
+        if (validatedNameScale !== undefined) updateData.nameFontScale = validatedNameScale;
+        if (validatedDescriptionScale !== undefined) updateData.descriptionFontScale = validatedDescriptionScale;
+        if (validatedPriceScale !== undefined) updateData.priceFontScale = validatedPriceScale;
+
         const updatedDevice = await (prisma.device as any).update({
             where: { id: deviceId },
             data: updateData
@@ -694,6 +755,7 @@ const updateDeviceConfigService = async ({
             transitionSpeedSeconds: updatedDevice.transitionSpeedSeconds ?? 0.5,
             autoScrollIntervalSeconds:
                 updatedDevice.autoScrollIntervalSeconds ?? 8,
+            ...deviceDisplaySettings(updatedDevice),
             online: true,
             createdAt: updatedDevice.createdAt
         };
