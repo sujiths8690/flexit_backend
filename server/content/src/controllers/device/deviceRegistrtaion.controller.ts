@@ -11,6 +11,9 @@ import {
 import { successResponse, errorResponse } from "../../utils/response.helper";
 import { HTTP_STATUS } from "../../utils/httpStatus";
 
+const bearerTokenFromRequest = (req: Request) =>
+    req.headers.authorization?.split(" ")[1];
+
 
 /* ================================
    REGISTER DEVICE
@@ -30,7 +33,8 @@ export const registerDeviceController = async (req: Request, res: Response) => {
         const device = await registerDeviceService({
             name,
             businessId: req.user!.businessId,
-            userId: req.user!.userId
+            userId: req.user!.userId,
+            token: bearerTokenFromRequest(req)
         });
 
         return successResponse(
@@ -85,7 +89,8 @@ export const pairDeviceController = async (req: Request, res: Response) => {
             deviceCode,
             name,
             businessId,
-            userId: req.user!.userId
+            userId: req.user!.userId,
+            token: bearerTokenFromRequest(req)
         });
 
         return successResponse(
@@ -217,7 +222,8 @@ export const updateDeviceConfigController = async (req: Request, res: Response) 
             selectedMediaId,
             transitionStyle,
             transitionSpeedSeconds,
-            autoScrollIntervalSeconds
+            autoScrollIntervalSeconds,
+            token: bearerTokenFromRequest(req)
         });
 
         return successResponse(
@@ -267,7 +273,8 @@ export const deleteDeviceController = async (req: Request, res: Response) => {
         const result = await deleteDeviceService(
             deviceId,
             req.user!.businessId,
-            req.user!.userId
+            req.user!.userId,
+            bearerTokenFromRequest(req)
         );
 
         return successResponse(

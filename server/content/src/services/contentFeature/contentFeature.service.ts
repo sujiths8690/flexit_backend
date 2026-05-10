@@ -1,5 +1,6 @@
 import prisma from "../../config/prisma";
 import { sendRealtimeUpdate } from "../../utils/realtimeClient";
+import { broadcastBusinessDisplayConfigs } from "../../utils/deviceDisplayRealtime";
 
 type ComboItemInput = {
   productId: number;
@@ -17,6 +18,7 @@ type ComboInput = {
   startDate?: string | null;
   endDate?: string | null;
   items: ComboItemInput[];
+  token?: string;
 };
 
 const money = (value: any) =>
@@ -144,7 +146,8 @@ export const createComboOfferService = async (input: ComboInput) => {
       items: { include: { product: { include: { category: true } } } },
     },
   });
-  sendRealtimeUpdate(input.businessId, "COMBO_UPDATED", combo);
+  sendRealtimeUpdate(input.businessId, "COMBO_UPDATED", combo, input.token);
+  void broadcastBusinessDisplayConfigs(input.businessId);
   return comboDto(combo);
 };
 
@@ -195,13 +198,15 @@ export const updateComboOfferService = async (input: ComboInput) => {
       },
     });
   });
-  sendRealtimeUpdate(input.businessId, "COMBO_UPDATED", combo);
+  sendRealtimeUpdate(input.businessId, "COMBO_UPDATED", combo, input.token);
+  void broadcastBusinessDisplayConfigs(input.businessId);
   return comboDto(combo);
 };
 
 export const deleteComboOfferService = async (
   businessId: number,
-  comboId: number
+  comboId: number,
+  token?: string
 ) => {
   const combo = await prisma.comboOffer.findFirst({
     where: { id: comboId, businessId, isActive: true },
@@ -211,7 +216,8 @@ export const deleteComboOfferService = async (
     where: { id: comboId },
     data: { isActive: false },
   });
-  sendRealtimeUpdate(businessId, "COMBO_UPDATED", { id: comboId });
+  sendRealtimeUpdate(businessId, "COMBO_UPDATED", { id: comboId }, token);
+  void broadcastBusinessDisplayConfigs(businessId);
 };
 
 export const getTodaysStarService = async (businessId: number) => {
@@ -234,7 +240,8 @@ export const getTodaysStarService = async (businessId: number) => {
 
 export const setTodaysStarService = async (
   businessId: number,
-  productIds: number[]
+  productIds: number[],
+  token?: string
 ) => {
   const uniqueIds = [...new Set(productIds.map(Number))].filter(Boolean);
   if (!uniqueIds.length) throw new Error("PRODUCT_REQUIRED");
@@ -261,6 +268,7 @@ export const setTodaysStarService = async (
     product: productDto(stars[0].product),
     products: stars.map((star) => productDto(star.product)),
   };
-  sendRealtimeUpdate(businessId, "TODAYS_STAR_UPDATED", response);
+  sendRealtimeUpdate(businessId, "TODAYS_STAR_UPDATED", response, token);
+  void broadcastBusinessDisplayConfigs(businessId);
   return response;
 };

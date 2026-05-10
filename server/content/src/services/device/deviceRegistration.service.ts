@@ -1,6 +1,9 @@
 import prisma from "../../config/prisma";
 import { logActivity } from "../../utils/activityClient";
-import { sendRealtimeUpdate } from "../../utils/realtimeClient";
+import {
+    sendDeviceRealtimeUpdate,
+    sendRealtimeUpdate
+} from "../../utils/realtimeClient";
 
 interface DeviceInput {
     deviceId?: number;
@@ -8,6 +11,7 @@ interface DeviceInput {
     deviceCode?: string;
     businessId: number;
     userId: number;
+    token?: string;
 }
 
 interface DeviceConfigInput {
@@ -24,6 +28,7 @@ interface DeviceConfigInput {
     transitionStyle?: string;
     transitionSpeedSeconds?: number;
     autoScrollIntervalSeconds?: number;
+    token?: string;
 }
 
 const allowedOrientations = new Set(["normal", "left", "right", "inverted"]);
@@ -174,7 +179,8 @@ const serializeComboOffer = (combo: any) => {
 const registerDeviceService = async ({
     name,
     businessId,
-    userId
+    userId,
+    token
 }: DeviceInput) => {
 
     try {
@@ -212,7 +218,8 @@ const registerDeviceService = async ({
         sendRealtimeUpdate(
             businessId,
             "DEVICE_CREATED",
-            device.deviceCode
+            device.deviceCode,
+            token
         );
 
         return {
@@ -234,7 +241,8 @@ const pairDeviceByCodeService = async ({
     deviceCode,
     name,
     businessId,
-    userId
+    userId,
+    token
 }: DeviceInput) => {
 
     try {
@@ -299,8 +307,17 @@ const pairDeviceByCodeService = async ({
         sendRealtimeUpdate(
             businessId,
             "DEVICE_PAIRED",
-            device.deviceCode
+            device.deviceCode,
+            token
         );
+
+        void getDeviceConfigByCodeService(device.deviceCode)
+            .then((displayConfig) => sendDeviceRealtimeUpdate(
+                device.deviceCode,
+                "DEVICE_CONFIG_UPDATED",
+                displayConfig
+            ))
+            .catch((error) => console.error("Device config push failed:", error));
 
         return {
             id: device.id,
@@ -408,8 +425,7 @@ const getDeviceConfigByCodeService = async (deviceCode: string) => {
         }
         const productWhere: any = {
             businessId: device.businessId,
-            isActive: true,
-            isAvailable: true
+            isActive: true
         };
         if (contentMode === "category" && selectedCategoryId) {
             productWhere.categoryId = selectedCategoryId;
@@ -514,7 +530,8 @@ const updateDeviceConfigService = async ({
     selectedMediaId,
     transitionStyle,
     transitionSpeedSeconds,
-    autoScrollIntervalSeconds
+    autoScrollIntervalSeconds,
+    token
 }: DeviceConfigInput) => {
     try {
         if (!deviceId) {
@@ -650,8 +667,17 @@ const updateDeviceConfigService = async ({
         sendRealtimeUpdate(
             businessId,
             "DEVICE_CONFIG_UPDATED",
-            updatedDevice.deviceCode
+            updatedDevice.deviceCode,
+            token
         );
+
+        void getDeviceConfigByCodeService(updatedDevice.deviceCode)
+            .then((displayConfig) => sendDeviceRealtimeUpdate(
+                updatedDevice.deviceCode,
+                "DEVICE_CONFIG_UPDATED",
+                displayConfig
+            ))
+            .catch((error) => console.error("Device config push failed:", error));
 
         return {
             id: updatedDevice.id,
@@ -684,7 +710,8 @@ const updateDeviceConfigService = async ({
 const deleteDeviceService = async (
     deviceId: number,
     businessId: number,
-    userId: number
+    userId: number,
+    token?: string
 ) => {
 
     try {
@@ -720,7 +747,14 @@ const deleteDeviceService = async (
         sendRealtimeUpdate(
             businessId,
             "DEVICE_DELETED",
-            {id: deviceId}
+            {id: deviceId},
+            token
+        );
+
+        void sendDeviceRealtimeUpdate(
+            existingDevice.deviceCode,
+            "DEVICE_DELETED",
+            { deviceCode: existingDevice.deviceCode }
         );
 
         return { success: true };

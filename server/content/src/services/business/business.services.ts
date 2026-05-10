@@ -1,4 +1,5 @@
 import prisma from "../../config/prisma";
+import { broadcastBusinessDisplayConfigs } from "../../utils/deviceDisplayRealtime";
 
 
 export const createBusinessService = async ({
@@ -78,7 +79,7 @@ export const updateBusinessService = async ({
     throw new Error("BUSINESS_NOT_FOUND");
   }
 
-  return prisma.business.update({
+  const updated = await prisma.business.update({
     where: { id },
     data: {
       ...(name !== undefined && { name }),
@@ -93,6 +94,10 @@ export const updateBusinessService = async ({
       ...(showProductImage !== undefined && { showProductImage }),
     } as any,
   });
+
+  void broadcastBusinessDisplayConfigs(id);
+
+  return updated;
 };
 
 export const getBusinessByIdService = async (id: number) => {

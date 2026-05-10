@@ -1,6 +1,7 @@
 
 import prisma from "../../config/prisma";
 import { sendRealtimeUpdate } from "../../utils/realtimeClient";
+import { broadcastBusinessDisplayConfigs } from "../../utils/deviceDisplayRealtime";
 
 interface CategoryInput {
     categoryId?: number;
@@ -63,6 +64,8 @@ const createCategoryService = async ({
             "CATEGORY_CREATED",
             category
         );
+
+        void broadcastBusinessDisplayConfigs(businessId);
 
         return category;
 
@@ -134,6 +137,8 @@ const updateCategoryService = async ({
       updatedCategory
     );
 
+    void broadcastBusinessDisplayConfigs(businessId);
+
     return updatedCategory;
 
   } catch (error: any) {
@@ -192,6 +197,8 @@ const deleteCategoryService = async (
             "CATEGORY_DELETED",
             { id: categoryId }
         );
+
+        void broadcastBusinessDisplayConfigs(businessId);
 
         return { success: true };
 

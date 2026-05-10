@@ -12,6 +12,8 @@ import {
 } from "../../services/contentFeature/contentFeature.service";
 
 const messageFor = (error: any) => error.message || "Request failed";
+const bearerTokenFromRequest = (req: Request) =>
+  req.headers.authorization?.split(" ")[1];
 
 export const getMenuProducts = async (req: Request, res: Response) => {
   try {
@@ -44,6 +46,7 @@ export const createComboOffer = async (req: Request, res: Response) => {
     const combo = await createComboOfferService({
       ...req.body,
       businessId: req.user!.businessId,
+      token: bearerTokenFromRequest(req),
     });
     return successResponse(
       res,
@@ -66,6 +69,7 @@ export const updateComboOffer = async (req: Request, res: Response) => {
       ...req.body,
       comboId,
       businessId: req.user!.businessId,
+      token: bearerTokenFromRequest(req),
     });
     return successResponse(res, combo, "Combo offer updated", HTTP_STATUS.OK);
   } catch (error: any) {
@@ -79,7 +83,11 @@ export const deleteComboOffer = async (req: Request, res: Response) => {
     if (Number.isNaN(comboId)) {
       return errorResponse(res, "Invalid combo id", HTTP_STATUS.BAD_REQUEST);
     }
-    await deleteComboOfferService(req.user!.businessId, comboId);
+    await deleteComboOfferService(
+      req.user!.businessId,
+      comboId,
+      bearerTokenFromRequest(req)
+    );
     return successResponse(res, null, "Combo offer deleted", HTTP_STATUS.OK);
   } catch (error: any) {
     return errorResponse(res, messageFor(error), HTTP_STATUS.BAD_REQUEST);
@@ -110,7 +118,11 @@ export const setTodaysStar = async (req: Request, res: Response) => {
     ) {
       return errorResponse(res, "Invalid product id", HTTP_STATUS.BAD_REQUEST);
     }
-    const star = await setTodaysStarService(req.user!.businessId, productIds);
+    const star = await setTodaysStarService(
+      req.user!.businessId,
+      productIds,
+      bearerTokenFromRequest(req)
+    );
     return successResponse(res, star, "Today's star saved", HTTP_STATUS.OK);
   } catch (error: any) {
     return errorResponse(res, messageFor(error), HTTP_STATUS.BAD_REQUEST);

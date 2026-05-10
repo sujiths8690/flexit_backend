@@ -1,6 +1,7 @@
 import prisma from "../../config/prisma";
 import { logActivity } from "../../utils/activityClient";
 import { sendRealtimeUpdate } from "../../utils/realtimeClient";
+import { broadcastBusinessDisplayConfigs } from "../../utils/deviceDisplayRealtime";
 import multer from "multer";
 
 /* ================================
@@ -57,6 +58,8 @@ const uploadMediaService = async ({
       media,
       token // ✅ FIX
     );
+
+    void broadcastBusinessDisplayConfigs(businessId);
 
     return media;
 
@@ -121,6 +124,8 @@ const deleteMediaService = async ({
       { id: mediaId },
       token // ✅ FIX
     );
+
+    void broadcastBusinessDisplayConfigs(businessId);
 
     return { success: true };
 

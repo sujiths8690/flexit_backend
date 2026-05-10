@@ -2,6 +2,7 @@
 import prisma from "../../config/prisma";
 import { logActivity } from "../../utils/activityClient";
 import { sendRealtimeUpdate } from "../../utils/realtimeClient";
+import { broadcastDeviceDisplayConfig } from "../../utils/deviceDisplayRealtime";
 
 
 interface CreateDeviceMediaInput {
@@ -83,6 +84,8 @@ const createDeviceMediaService = async ({
             "DEVICE_MEDIA_CREATED",
             deviceMedia
         );
+
+        void broadcastDeviceDisplayConfig(device.deviceCode);
 
         return deviceMedia;
 
@@ -182,6 +185,8 @@ const updateDeviceMediaService = async ({
             updated
         );
 
+        void broadcastDeviceDisplayConfig(existing.device.deviceCode);
+
         return updated;
 
     } catch (error: any) {
@@ -234,6 +239,8 @@ const deleteDeviceMediaService = async (
             "DEVICE_MEDIA_DELETED",
             { id: deviceMediaId }
         );
+
+        void broadcastDeviceDisplayConfig(existing.device.deviceCode);
 
         return { success: true };
 

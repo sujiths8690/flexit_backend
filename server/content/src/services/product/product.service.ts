@@ -2,6 +2,7 @@ import prisma from "../../config/prisma";
 import { VegType } from "@prisma/client";
 import { logActivity } from "../../utils/activityClient";
 import { sendRealtimeUpdate } from "../../utils/realtimeClient";
+import { broadcastBusinessDisplayConfigs } from "../../utils/deviceDisplayRealtime";
 
 
 interface ProductInput{
@@ -86,6 +87,8 @@ const createProductService= async({
             "PRODUCT_CREATED",
             response
         );
+
+        void broadcastBusinessDisplayConfigs(businessId);
          
         return response;
     }catch(error:any){
@@ -169,6 +172,8 @@ const updateProductService= async({
             "DEVICE_UPDATED",
             response
         );
+
+        void broadcastBusinessDisplayConfigs(businessId);
 
         return response;
 
@@ -271,6 +276,8 @@ const deleteProductService= async(productId:number, businessId:number, userId:nu
             "DEVICE_DELETED",
             deleteProduct
         );
+
+        void broadcastBusinessDisplayConfigs(businessId);
 
     }catch(error){
         throw new Error(`ERROR_DELETING_PRODUCT ${error}`)
