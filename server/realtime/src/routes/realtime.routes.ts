@@ -1,7 +1,9 @@
 import { Router } from "express";
 import {
   broadcastToBusiness,
-  broadcastToDevice
+  broadcastToDevice,
+  getDeviceConnectionStatuses,
+  isDeviceConnected
 } from "../services/websocketService";
 import { authenticate } from "../middleware/auth";
 
@@ -80,6 +82,66 @@ router.post("/device-broadcast", (req, res) => {
   broadcastToDevice(deviceCode, { type, data });
 
   res.json({ success: true });
+});
+
+router.get("/device-status/:deviceCode", (req, res) => {
+  const configuredSecret = process.env.REALTIME_INTERNAL_SECRET;
+  const requestSecret = req.header("x-internal-realtime-secret");
+
+  if (configuredSecret && requestSecret !== configuredSecret) {
+    return res.status(401).json({
+      success: false,
+      error: "unauthorized"
+    });
+  }
+
+  const deviceCode = req.params.deviceCode?.trim().toUpperCase();
+
+  if (!deviceCode) {
+    return res.status(400).json({
+      success: false,
+      error: "deviceCode is required"
+    });
+  }
+
+  res.json({
+    success: true,
+    data: {
+      deviceCode,
+      online: isDeviceConnected(deviceCode)
+    }
+  });
+});
+
+router.post("/device-statuses", (req, res) => {
+  const configuredSecret = process.env.REALTIME_INTERNAL_SECRET;
+  const requestSecret = req.header("x-internal-realtime-secret");
+
+  if (configuredSecret && requestSecret !== configuredSecret) {
+    return res.status(401).json({
+      success: false,
+      error: "unauthorized"
+    });
+  }
+
+  const { deviceCodes } = req.body;
+
+  if (!Array.isArray(deviceCodes)) {
+    return res.status(400).json({
+      success: false,
+      error: "deviceCodes must be an array"
+    });
+  }
+
+  const normalizedDeviceCodes = deviceCodes
+    .filter((deviceCode) => typeof deviceCode === "string")
+    .map((deviceCode) => deviceCode.trim().toUpperCase())
+    .filter(Boolean);
+
+  res.json({
+    success: true,
+    data: getDeviceConnectionStatuses(normalizedDeviceCodes)
+  });
 });
 
 export default router;

@@ -1,6 +1,8 @@
 import prisma from "../../config/prisma";
 import { logActivity } from "../../utils/activityClient";
 import {
+    getDeviceRealtimeStatus,
+    getDeviceRealtimeStatuses,
     sendDeviceRealtimeUpdate,
     sendRealtimeUpdate
 } from "../../utils/realtimeClient";
@@ -28,6 +30,10 @@ interface DeviceConfigInput {
     transitionStyle?: string;
     transitionSpeedSeconds?: number;
     autoScrollIntervalSeconds?: number;
+    scheduleEnabled?: boolean;
+    alwaysOn?: boolean;
+    scheduleStartTime?: string;
+    scheduleEndTime?: string;
     showPrice?: boolean;
     showDescription?: boolean;
     showLogo?: boolean;
@@ -138,6 +144,13 @@ const mediaUrl = (url?: string | null) => {
 };
 
 const mediaType = (type: string) => type.toLowerCase();
+
+const deviceScheduleSettings = (device: any) => ({
+    scheduleEnabled: device.scheduleEnabled ?? false,
+    alwaysOn: device.alwaysOn ?? true,
+    scheduleStartTime: device.scheduleStartTime ?? "09:00",
+    scheduleEndTime: device.scheduleEndTime ?? "22:00",
+});
 
 const productCategory = (product: any) => {
     if (product.category) {
@@ -357,6 +370,8 @@ const pairDeviceByCodeService = async ({
             ))
             .catch((error) => console.error("Device config push failed:", error));
 
+        const online = await getDeviceRealtimeStatus(device.deviceCode, token);
+
         return {
             id: device.id,
             name: device.name,
@@ -372,8 +387,9 @@ const pairDeviceByCodeService = async ({
             transitionSpeedSeconds: (device as any).transitionSpeedSeconds ?? 0.5,
             autoScrollIntervalSeconds:
                 (device as any).autoScrollIntervalSeconds ?? 8,
+            ...deviceScheduleSettings(device),
             ...deviceDisplaySettings(device),
-            online: true,
+            online,
             createdAt: device.createdAt
         };
 
@@ -397,25 +413,34 @@ const listDevicesByBusinessService = async (businessId: number) => {
             orderBy: { createdAt: "desc" }
         });
 
-        return devices.map((device) => ({
-            id: device.id,
-            name: device.name,
-            deviceCode: device.deviceCode,
-            mode: device.displayMode,
-            orientation: (device as any).orientation ?? "normal",
-            menuTheme: (device as any).menuTheme ?? "light",
-            themeColor: (device as any).themeColor ?? "gold",
-            displayContentMode: (device as any).displayContentMode ?? "allCategories",
-            selectedCategoryId: (device as any).selectedCategoryId ?? null,
-            selectedMediaId: (device as any).selectedMediaId ?? null,
-            transitionStyle: (device as any).transitionStyle ?? "fade",
-            transitionSpeedSeconds: (device as any).transitionSpeedSeconds ?? 0.5,
-            autoScrollIntervalSeconds:
-                (device as any).autoScrollIntervalSeconds ?? 8,
-            ...deviceDisplaySettings(device),
-            online: true,
-            createdAt: device.createdAt
-        }));
+        const statuses = await getDeviceRealtimeStatuses(
+            devices.map((device) => device.deviceCode)
+        );
+
+        return devices.map((device) => {
+            const normalizedDeviceCode = device.deviceCode.trim().toUpperCase();
+
+            return {
+                id: device.id,
+                name: device.name,
+                deviceCode: device.deviceCode,
+                mode: device.displayMode,
+                orientation: (device as any).orientation ?? "normal",
+                menuTheme: (device as any).menuTheme ?? "light",
+                themeColor: (device as any).themeColor ?? "gold",
+                displayContentMode: (device as any).displayContentMode ?? "allCategories",
+                selectedCategoryId: (device as any).selectedCategoryId ?? null,
+                selectedMediaId: (device as any).selectedMediaId ?? null,
+                transitionStyle: (device as any).transitionStyle ?? "fade",
+                transitionSpeedSeconds: (device as any).transitionSpeedSeconds ?? 0.5,
+                autoScrollIntervalSeconds:
+                    (device as any).autoScrollIntervalSeconds ?? 8,
+                ...deviceScheduleSettings(device),
+                ...deviceDisplaySettings(device),
+                online: Boolean(statuses[normalizedDeviceCode]),
+                createdAt: device.createdAt
+            };
+        });
 
     } catch (error: any) {
         throw new Error(`ERROR_FETCHING_DEVICES: ${error.message}`);
@@ -532,6 +557,7 @@ const getDeviceConfigByCodeService = async (deviceCode: string) => {
                 transitionStyle,
                 transitionSpeedSeconds,
                 autoScrollIntervalSeconds: interval,
+                ...deviceScheduleSettings(device),
                 ...deviceDisplaySettings(device, device.business),
                 mediaItems: mediaItems.map(serializeMedia),
                 menuItems: isComboMode
@@ -567,6 +593,10 @@ const updateDeviceConfigService = async ({
     transitionStyle,
     transitionSpeedSeconds,
     autoScrollIntervalSeconds,
+    scheduleEnabled,
+    alwaysOn,
+    scheduleStartTime,
+    scheduleEndTime,
     showPrice,
     showDescription,
     showLogo,
@@ -697,6 +727,28 @@ const updateDeviceConfigService = async ({
             updateData.autoScrollIntervalSeconds = autoScrollIntervalSeconds;
         }
 
+        if (alwaysOn !== undefined) {
+            const alwaysOnEnabled = Boolean(alwaysOn);
+            updateData.alwaysOn = alwaysOnEnabled;
+            updateData.scheduleEnabled = !alwaysOnEnabled;
+        } else if (scheduleEnabled !== undefined) {
+            updateData.scheduleEnabled = Boolean(scheduleEnabled);
+        }
+
+        const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+        if (scheduleStartTime !== undefined) {
+            if (!timePattern.test(scheduleStartTime)) {
+                throw new Error("INVALID_SCHEDULE_START_TIME");
+            }
+            updateData.scheduleStartTime = scheduleStartTime;
+        }
+        if (scheduleEndTime !== undefined) {
+            if (!timePattern.test(scheduleEndTime)) {
+                throw new Error("INVALID_SCHEDULE_END_TIME");
+            }
+            updateData.scheduleEndTime = scheduleEndTime;
+        }
+
         if (showPrice !== undefined) updateData.showPrice = Boolean(showPrice);
         if (showDescription !== undefined) updateData.showDescription = Boolean(showDescription);
         if (showLogo !== undefined) updateData.showLogo = Boolean(showLogo);
@@ -740,6 +792,8 @@ const updateDeviceConfigService = async ({
             ))
             .catch((error) => console.error("Device config push failed:", error));
 
+        const online = await getDeviceRealtimeStatus(updatedDevice.deviceCode, token);
+
         return {
             id: updatedDevice.id,
             name: updatedDevice.name,
@@ -755,8 +809,9 @@ const updateDeviceConfigService = async ({
             transitionSpeedSeconds: updatedDevice.transitionSpeedSeconds ?? 0.5,
             autoScrollIntervalSeconds:
                 updatedDevice.autoScrollIntervalSeconds ?? 8,
+            ...deviceScheduleSettings(updatedDevice),
             ...deviceDisplaySettings(updatedDevice),
-            online: true,
+            online,
             createdAt: updatedDevice.createdAt
         };
 

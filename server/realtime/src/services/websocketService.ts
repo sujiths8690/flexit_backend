@@ -5,18 +5,48 @@ interface ExtendedWebSocket extends WebSocket {
   businessId?: number;
   userId?: number;
   deviceCode?: string;
+  isAlive?: boolean;
 }
 
 const businessConnections = new Map<number, Set<ExtendedWebSocket>>();
 const deviceConnections = new Map<string, Set<ExtendedWebSocket>>();
 const latestDeviceMessages = new Map<string, any>();
+const deviceHeartbeats = new Map<string, number>();
+const DEVICE_ONLINE_TTL_MS = 15000;
 
 let wss: WebSocketServer;
+
+const removeConnection = (ws: ExtendedWebSocket) => {
+  if (ws.deviceCode !== undefined) {
+    const deviceCode = ws.deviceCode;
+    const clients = deviceConnections.get(ws.deviceCode);
+    clients?.delete(ws);
+    if (clients?.size === 0) {
+      deviceConnections.delete(ws.deviceCode);
+      deviceHeartbeats.delete(ws.deviceCode);
+    }
+    ws.deviceCode = undefined;
+    console.log("Device WS Disconnected:", deviceCode);
+  }
+
+  if (ws.businessId !== undefined) {
+    const businessId = ws.businessId;
+    const clients = businessConnections.get(ws.businessId);
+    clients?.delete(ws);
+    if (clients?.size === 0) {
+      businessConnections.delete(ws.businessId);
+    }
+    ws.businessId = undefined;
+    console.log("WS Disconnected:", businessId);
+  }
+};
 
 export const initialize = (webSocketServer: WebSocketServer) => {
   wss = webSocketServer;
 
   wss.on("connection", (ws: ExtendedWebSocket, req) => {
+    ws.isAlive = true;
+
     try {
       console.log("WS Connection Attempt:", req.url, req.headers.host);
 
@@ -28,6 +58,7 @@ export const initialize = (webSocketServer: WebSocketServer) => {
 
       if (deviceCode) {
         ws.deviceCode = deviceCode;
+        deviceHeartbeats.set(deviceCode, Date.now());
 
         if (!deviceConnections.has(deviceCode)) {
           deviceConnections.set(deviceCode, new Set());
@@ -86,36 +117,56 @@ export const initialize = (webSocketServer: WebSocketServer) => {
       return;
     }
 
+    ws.on("pong", () => {
+      ws.isAlive = true;
+      if (ws.deviceCode) {
+        deviceHeartbeats.set(ws.deviceCode, Date.now());
+      }
+    });
+
     ws.on("message", (data) => {
       try {
         const message = JSON.parse(data.toString());
 
         if (message.type === "PING") {
+          ws.isAlive = true;
+          if (ws.deviceCode) {
+            deviceHeartbeats.set(ws.deviceCode, Date.now());
+          }
           ws.send(JSON.stringify({ type: "PONG" }));
+          return;
+        }
+
+        if (message.type === "DEVICE_DISCONNECT") {
+          removeConnection(ws);
+          ws.close();
         }
       } catch {}
     });
 
     ws.on("close", () => {
-      if (ws.deviceCode !== undefined) {
-        deviceConnections.get(ws.deviceCode)?.delete(ws);
-        console.log("Device WS Disconnected:", ws.deviceCode);
-      }
+      removeConnection(ws);
+    });
 
-      if (ws.businessId !== undefined) {
-        businessConnections.get(ws.businessId)?.delete(ws);
-        console.log("WS Disconnected:", ws.businessId);
-      }
+    ws.on("error", () => {
+      removeConnection(ws);
     });
   });
 
   setInterval(() => {
     wss.clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.ping();
+      const ws = client as ExtendedWebSocket;
+
+      if (ws.isAlive === false) {
+        removeConnection(ws);
+        ws.terminate();
+        return;
       }
+
+      ws.isAlive = false;
+      if (ws.readyState === WebSocket.OPEN) ws.ping();
     });
-  }, 30000);
+  }, 10000);
 };
 
 export const broadcastToBusiness = (businessId: number, message: any) => {
@@ -157,4 +208,37 @@ export const broadcastToDevice = (deviceCode: string, message: any) => {
       ws.send(messageStr);
     }
   });
+};
+
+export const isDeviceConnected = (deviceCode: string) => {
+  const normalizedDeviceCode = deviceCode.trim().toUpperCase();
+  const clients = deviceConnections.get(normalizedDeviceCode);
+  const lastHeartbeat = deviceHeartbeats.get(normalizedDeviceCode) ?? 0;
+  const hasRecentHeartbeat = Date.now() - lastHeartbeat <= DEVICE_ONLINE_TTL_MS;
+
+  if (!clients || !hasRecentHeartbeat) {
+    deviceConnections.delete(normalizedDeviceCode);
+    deviceHeartbeats.delete(normalizedDeviceCode);
+    return false;
+  }
+
+  const openClients = [...clients].filter(
+    (ws) => ws.readyState === WebSocket.OPEN
+  );
+
+  if (openClients.length === 0) {
+    deviceConnections.delete(normalizedDeviceCode);
+    deviceHeartbeats.delete(normalizedDeviceCode);
+    return false;
+  }
+
+  return true;
+};
+
+export const getDeviceConnectionStatuses = (deviceCodes: string[]) => {
+  return deviceCodes.reduce<Record<string, boolean>>((statuses, deviceCode) => {
+    const normalizedDeviceCode = deviceCode.trim().toUpperCase();
+    statuses[normalizedDeviceCode] = isDeviceConnected(normalizedDeviceCode);
+    return statuses;
+  }, {});
 };

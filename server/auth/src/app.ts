@@ -29,7 +29,7 @@ app.use("/api/users", userRoutes);
 
 //root Route
 app.get('/', (req,res)=>{
-    res.send('Welcome to the TeXBoard API');
+    res.send('Welcome to the flexit API');
 })
 
 //creating port

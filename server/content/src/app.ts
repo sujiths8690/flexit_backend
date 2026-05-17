@@ -45,7 +45,7 @@ app.use("/api/menu-content", contentFeatureRoutes);
 
 //root Route
 app.get('/', (req,res)=>{
-    res.send('Welcome to the TeXBoard API');
+    res.send('Welcome to the flexit API');
 })
 
 //creating port

@@ -19,7 +19,7 @@ export const sendResetEmail = async (
 
   try {
     await transporter.sendMail({
-      from: `"teXBoard" <${process.env.GMAIL_USER}>`,
+      from: `"flexit" <${process.env.GMAIL_USER}>`,
       to,
       subject: "Reset your password",
       html: `
