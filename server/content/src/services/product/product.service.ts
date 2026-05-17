@@ -130,8 +130,29 @@ const updateProductService= async({
 
         if (name !== undefined) updateData.name = name;
         if (description !== undefined) updateData.description = description;
-        if (price !== undefined) updateData.price = price;
-        if (priceVariants !== undefined) updateData.priceVariants = priceVariants;
+        if (price !== undefined) {
+            const nextPrice = Number(price);
+            if (!Number.isFinite(nextPrice)) {
+                throw new Error("INVALID_PRODUCT_PRICE");
+            }
+            updateData.price = nextPrice;
+        }
+        if (priceVariants !== undefined) {
+            updateData.priceVariants = Array.isArray(priceVariants)
+                ? priceVariants
+                    .map((variant) => ({
+                        label: variant.label,
+                        price: Number(variant.price)
+                    }))
+                    .filter(
+                        (variant) =>
+                            typeof variant.label === "string" &&
+                            variant.label.trim() &&
+                            Number.isFinite(variant.price) &&
+                            variant.price > 0
+                    )
+                : [];
+        }
         if (vegFlag !== undefined) updateData.vegFlag = vegFlag;
         if (categoryId !== undefined) updateData.categoryId = categoryId;
         if (imageUrl !== undefined) updateData.imageUrl = imageUrl;

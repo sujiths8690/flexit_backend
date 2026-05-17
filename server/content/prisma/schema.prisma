@@ -19,6 +19,7 @@ model Business {
   showLogo          Boolean          @default(true)
   showCompanyName   Boolean          @default(true)
   showProductImage  Boolean          @default(true)
+  showDietTags      Boolean          @default(true)
   isActive          Boolean          @default(true)
   address           String?           @db.VarChar(100)
 
@@ -59,6 +60,7 @@ model Device {
   showLogo          Boolean   @default(true)
   showCompanyName   Boolean   @default(true)
   showProductImage  Boolean   @default(true)
+  showDietTags      Boolean   @default(true)
   headingFontScale  Float     @default(1.0)
   nameFontScale     Float     @default(1.0)
   descriptionFontScale Float  @default(1.0)

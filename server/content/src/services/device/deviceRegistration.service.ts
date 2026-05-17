@@ -39,6 +39,7 @@ interface DeviceConfigInput {
     showLogo?: boolean;
     showCompanyName?: boolean;
     showProductImage?: boolean;
+    showDietTags?: boolean;
     headingFontScale?: number;
     nameFontScale?: number;
     descriptionFontScale?: number;
@@ -74,15 +75,67 @@ const allowedContentModes = new Set([
     "category",
     "allMedia",
     "media",
+    "veg",
+    "nonVeg",
     "comboOffers",
     "todaysStar"
 ]);
+const canonicalContentModes: Record<string, string> = {
+    allcategories: "allCategories",
+    category: "category",
+    allmedia: "allMedia",
+    media: "media",
+    veg: "veg",
+    nonveg: "nonVeg",
+    non_veg: "nonVeg",
+    combooffers: "comboOffers",
+    combooffer: "comboOffers",
+    todaysstar: "todaysStar",
+    todaystar: "todaysStar"
+};
+const contentModeOrder = [
+    "category",
+    "veg",
+    "nonVeg",
+    "allMedia",
+    "media",
+    "comboOffers",
+    "todaysStar"
+];
+const allContentModes = ["category", "veg", "nonVeg", "allMedia", "comboOffers", "todaysStar"];
 const allowedTransitionStyles = new Set(["fade", "slide", "zoom", "flip"]);
 const MIN_FONT_SCALE = 0.8;
 const MAX_FONT_SCALE = 1.2;
 
 const normalizeDisplaySetting = (value?: string) =>
     typeof value === "string" ? value.trim().toLowerCase() : value;
+
+const normalizeContentModeParts = (value?: string | null) =>
+    (value ?? "allCategories")
+        .split(",")
+        .map((mode) => canonicalContentModes[mode.trim().toLowerCase()] ?? mode.trim())
+        .filter(Boolean);
+
+const parseContentModes = (value?: string | null) => {
+    const rawModes = normalizeContentModeParts(value);
+    if (!rawModes.length || rawModes.includes("allCategories")) {
+        return allContentModes;
+    }
+    const uniqueModes = Array.from(new Set(rawModes));
+    const orderedModes = contentModeOrder.filter((mode) => uniqueModes.includes(mode));
+    return orderedModes.length ? orderedModes : allContentModes;
+};
+
+const normalizeContentModeValue = (value: string) => {
+    const rawModes = normalizeContentModeParts(value);
+    if (!rawModes.length) return null;
+    if (rawModes.some((mode) => !allowedContentModes.has(mode))) return null;
+    if (rawModes.includes("allCategories")) {
+        return rawModes.length === 1 ? allContentModes.join(",") : null;
+    }
+    const orderedModes = parseContentModes(rawModes.join(","));
+    return orderedModes.length ? orderedModes.join(",") : null;
+};
 
 const normalizeDeviceName = (value?: string | null) =>
     typeof value === "string" ? value.trim() : "";
@@ -108,6 +161,7 @@ const deviceDisplaySettings = (device: any, business?: any) => ({
     showLogo: resolveDeviceBool(device, business, "showLogo"),
     showCompanyName: resolveDeviceBool(device, business, "showCompanyName"),
     showProductImage: resolveDeviceBool(device, business, "showProductImage"),
+    showDietTags: resolveDeviceBool(device, business, "showDietTags"),
     headingFontScale: device.headingFontScale ?? 1,
     nameFontScale: device.nameFontScale ?? 1,
     descriptionFontScale: device.descriptionFontScale ?? 1,
@@ -165,7 +219,7 @@ const productCategory = (product: any) => {
     };
 };
 
-const serializeProduct = (product: any) => {
+const serializeProduct = (product: any, includeDietTags = true) => {
     const category = productCategory(product);
     const isTodaysStar = Boolean(product.isTodaysStar);
     return {
@@ -180,7 +234,7 @@ const serializeProduct = (product: any) => {
         categoryName: category.name,
         isAvailable: product.isAvailable,
         isFeatured: isTodaysStar,
-        tags: []
+        tags: includeDietTags ? [product.vegFlag === "non_veg" ? "nonVeg" : "veg"] : []
     };
 };
 
@@ -191,13 +245,13 @@ const serializeMedia = (media: any) => ({
     type: mediaType(media.type)
 });
 
-const serializeComboOffer = (combo: any) => {
+const serializeComboOffer = (combo: any, includeDietTags = true) => {
     const comboItems = (combo.items ?? []).map((item: any) => ({
         id: item.id,
         quantity: item.quantity ?? 1,
         variantLabel: item.variantLabel ?? null,
         variantPrice: item.variantPrice === null || item.variantPrice === undefined ? null : Number(item.variantPrice),
-        product: item.product ? serializeProduct(item.product) : null
+        product: item.product ? serializeProduct(item.product, includeDietTags) : null
     })).filter((item: any) => item.product !== null);
     const originalPrice = (combo.items ?? []).reduce(
         (total: number, item: any) =>
@@ -217,7 +271,7 @@ const serializeComboOffer = (combo: any) => {
         categoryName: "Combo Offers",
         isAvailable: true,
         isFeatured: true,
-        tags: ["combo"],
+        tags: [],
         originalPrice,
         comboItems,
         items: comboItems
@@ -475,35 +529,42 @@ const getDeviceConfigByCodeService = async (deviceCode: string) => {
             };
         }
 
-        const contentMode = (device as any).displayContentMode ?? "allCategories";
+        const storedContentMode = (device as any).displayContentMode ?? "allCategories";
+        const contentModes = parseContentModes(storedContentMode);
+        const contentMode = contentModes.join(",");
         const selectedCategoryId = (device as any).selectedCategoryId ?? null;
         const selectedMediaId = (device as any).selectedMediaId ?? null;
         const transitionStyle = (device as any).transitionStyle ?? "fade";
         const transitionSpeedSeconds = (device as any).transitionSpeedSeconds ?? 0.5;
         const interval = (device as any).autoScrollIntervalSeconds ?? 8;
-        const isMediaMode = contentMode === "allMedia" || contentMode === "media";
-        const isComboMode = contentMode === "comboOffers";
-        const isTodaysStarMode = contentMode === "todaysStar";
+        const displaySettings = deviceDisplaySettings(device, device.business);
+        const isMediaMode = contentModes.includes("allMedia") || contentModes.includes("media");
+        const isOnlyMediaMode = isMediaMode && contentModes.every((mode) => mode === "allMedia" || mode === "media");
+        const isComboMode = contentModes.includes("comboOffers");
+        const isTodaysStarMode = contentModes.includes("todaysStar");
+        const isVegMode = contentModes.includes("veg");
+        const isNonVegMode = contentModes.includes("nonVeg");
+        const isCategoryMode = contentModes.includes("allCategories") || contentModes.includes("category");
         const mediaWhere: any = { businessId: device.businessId };
-        if (contentMode === "media" && selectedMediaId) {
+        if (contentModes.includes("media") && selectedMediaId) {
             mediaWhere.id = selectedMediaId;
         }
         const productWhere: any = {
             businessId: device.businessId,
             isActive: true
         };
-        if (contentMode === "category" && selectedCategoryId) {
+        if (contentModes.includes("category") && selectedCategoryId) {
             productWhere.categoryId = selectedCategoryId;
         }
         const starDate = new Date();
         starDate.setHours(0, 0, 0, 0);
-        const mediaItems = isMediaMode
+        const mediaItems = contentModes.includes("media") && selectedMediaId
             ? await prisma.media.findMany({
                 where: mediaWhere,
                 orderBy: { createdAt: "desc" }
             })
             : [];
-        const todaysStars = !isMediaMode
+        const todaysStars = !isOnlyMediaMode
             ? await prisma.todaysStar.findMany({
                 where: { businessId: device.businessId, starDate },
                 include: { product: { include: { category: true } } },
@@ -513,26 +574,57 @@ const getDeviceConfigByCodeService = async (deviceCode: string) => {
         const todaysStarIds = new Set(todaysStars.map((star) => star.productId));
         let menuItems: any[] = [];
         try {
-            menuItems = isMediaMode
-                ? []
-                : isComboMode
-                    ? await prisma.comboOffer.findMany({
-                        where: { businessId: device.businessId, isActive: true },
-                        include: {
-                            items: {
-                                include: { product: { include: { category: true } } },
-                                orderBy: { id: "asc" }
-                            }
-                        },
-                        orderBy: { id: "desc" }
-                    })
-                : isTodaysStarMode
-                    ? todaysStars.map((star) => star.product)
-                    : await prisma.product.findMany({
-                        where: productWhere,
-                        include: { category: true },
-                        orderBy: [{ category: { position: "asc" } }, { position: "asc" }]
-                    });
+            const productItems = !isOnlyMediaMode && isCategoryMode
+                ? await prisma.product.findMany({
+                    where: productWhere,
+                    include: { category: true },
+                    orderBy: [{ category: { position: "asc" } }, { position: "asc" }]
+                })
+                : [];
+            const comboItems = !isOnlyMediaMode && isComboMode
+                ? await prisma.comboOffer.findMany({
+                    where: { businessId: device.businessId, isActive: true },
+                    include: {
+                        items: {
+                            include: { product: { include: { category: true } } },
+                            orderBy: { id: "asc" }
+                        }
+                    },
+                    orderBy: { id: "desc" }
+                })
+                : [];
+            const vegItems = !isOnlyMediaMode && isVegMode
+                ? await prisma.product.findMany({
+                    where: {
+                        businessId: device.businessId,
+                        isActive: true,
+                        vegFlag: "veg"
+                    },
+                    include: { category: true },
+                    orderBy: [{ category: { position: "asc" } }, { position: "asc" }]
+                })
+                : [];
+            const nonVegItems = !isOnlyMediaMode && isNonVegMode
+                ? await prisma.product.findMany({
+                    where: {
+                        businessId: device.businessId,
+                        isActive: true,
+                        vegFlag: "non_veg"
+                    },
+                    include: { category: true },
+                    orderBy: [{ category: { position: "asc" } }, { position: "asc" }]
+                })
+                : [];
+            const starItems = !isOnlyMediaMode && isTodaysStarMode
+                ? todaysStars.map((star) => star.product)
+                : [];
+            const seenMenuItemKeys = new Set<string>();
+            menuItems = [...productItems, ...vegItems, ...nonVegItems, ...comboItems, ...starItems].filter((item) => {
+                const key = Array.isArray((item as any).items) ? `combo-${item.id}` : `product-${item.id}`;
+                if (seenMenuItemKeys.has(key)) return false;
+                seenMenuItemKeys.add(key);
+                return true;
+            });
         } catch (error) {
             console.error("DISPLAY_CONTENT_FETCH_FAILED", error);
             menuItems = [];
@@ -547,7 +639,7 @@ const getDeviceConfigByCodeService = async (deviceCode: string) => {
             menuTheme: (device as any).menuTheme ?? "light",
             themeColor: (device as any).themeColor ?? "gold",
             displayConfig: {
-                mode: isMediaMode ? "media" : "menuBoard",
+                mode: isOnlyMediaMode ? "media" : "menuBoard",
                 contentMode,
                 selectedCategoryId,
                 selectedMediaId,
@@ -558,16 +650,16 @@ const getDeviceConfigByCodeService = async (deviceCode: string) => {
                 transitionSpeedSeconds,
                 autoScrollIntervalSeconds: interval,
                 ...deviceScheduleSettings(device),
-                ...deviceDisplaySettings(device, device.business),
+                ...displaySettings,
                 mediaItems: mediaItems.map(serializeMedia),
-                menuItems: isComboMode
-                    ? menuItems.map(serializeComboOffer)
-                    : menuItems.map((product) =>
-                        serializeProduct({
-                            ...product,
-                            isTodaysStar: todaysStarIds.has(product.id)
-                        })
-                    )
+                menuItems: menuItems.map((item) =>
+                    Array.isArray(item.items)
+                        ? serializeComboOffer(item, displaySettings.showDietTags)
+                        : serializeProduct({
+                            ...item,
+                            isTodaysStar: todaysStarIds.has(item.id)
+                        }, displaySettings.showDietTags)
+                )
             }
         };
 
@@ -602,6 +694,7 @@ const updateDeviceConfigService = async ({
     showLogo,
     showCompanyName,
     showProductImage,
+    showDietTags,
     headingFontScale,
     nameFontScale,
     descriptionFontScale,
@@ -672,10 +765,11 @@ const updateDeviceConfigService = async ({
         }
 
         if (displayContentMode !== undefined) {
-            if (!allowedContentModes.has(displayContentMode)) {
+            const normalizedContentMode = normalizeContentModeValue(displayContentMode);
+            if (!normalizedContentMode) {
                 throw new Error("INVALID_DISPLAY_CONTENT_MODE");
             }
-            updateData.displayContentMode = displayContentMode;
+            updateData.displayContentMode = normalizedContentMode;
         }
 
         if (selectedCategoryId !== undefined) {
@@ -754,6 +848,7 @@ const updateDeviceConfigService = async ({
         if (showLogo !== undefined) updateData.showLogo = Boolean(showLogo);
         if (showCompanyName !== undefined) updateData.showCompanyName = Boolean(showCompanyName);
         if (showProductImage !== undefined) updateData.showProductImage = Boolean(showProductImage);
+        if (showDietTags !== undefined) updateData.showDietTags = Boolean(showDietTags);
 
         const validatedHeadingScale = validateFontScale(headingFontScale, "heading_font_scale");
         const validatedNameScale = validateFontScale(nameFontScale, "name_font_scale");

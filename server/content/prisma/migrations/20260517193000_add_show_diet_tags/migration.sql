@@ -1,0 +1,5 @@
+ALTER TABLE `Business`
+  ADD COLUMN `showDietTags` BOOLEAN NOT NULL DEFAULT true;
+
+ALTER TABLE `Device`
+  ADD COLUMN `showDietTags` BOOLEAN NOT NULL DEFAULT true;

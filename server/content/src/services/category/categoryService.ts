@@ -128,18 +128,36 @@ const updateCategoryService = async ({
       data: {
         ...(name !== undefined && { name: name.trim().toLowerCase() }),
         ...(position !== undefined && { position })
+      },
+      include: {
+        _count: {
+          select: {
+            products: {
+              where: {
+                isActive: true
+              }
+            }
+          }
+        }
       }
     });
+
+    const response = {
+      id: updatedCategory.id,
+      name: updatedCategory.name,
+      position: updatedCategory.position,
+      productCount: updatedCategory._count.products
+    };
 
     sendRealtimeUpdate(
       businessId,
       "CATEGORY_UPDATED",
-      updatedCategory
+      response
     );
 
     void broadcastBusinessDisplayConfigs(businessId);
 
-    return updatedCategory;
+    return response;
 
   } catch (error: any) {
     throw new Error(`ERROR_UPDATING_CATEGORY: ${error.message}`);
