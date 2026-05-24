@@ -16,6 +16,16 @@ const DEVICE_ONLINE_TTL_MS = 15000;
 
 let wss: WebSocketServer;
 
+const sendLatestDeviceMessage = (
+  ws: ExtendedWebSocket,
+  deviceCode: string
+) => {
+  const latestMessage = latestDeviceMessages.get(deviceCode);
+  if (latestMessage && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(latestMessage));
+  }
+};
+
 const removeConnection = (ws: ExtendedWebSocket) => {
   if (ws.deviceCode !== undefined) {
     const deviceCode = ws.deviceCode;
@@ -73,10 +83,7 @@ export const initialize = (webSocketServer: WebSocketServer) => {
           })
         );
 
-        const latestMessage = latestDeviceMessages.get(deviceCode);
-        if (latestMessage) {
-          ws.send(JSON.stringify(latestMessage));
-        }
+        sendLatestDeviceMessage(ws, deviceCode);
       } else {
         const token = url.searchParams.get("token");
 
@@ -134,6 +141,14 @@ export const initialize = (webSocketServer: WebSocketServer) => {
             deviceHeartbeats.set(ws.deviceCode, Date.now());
           }
           ws.send(JSON.stringify({ type: "PONG" }));
+          return;
+        }
+
+        if (message.type === "DEVICE_CONFIG_REQUEST") {
+          if (ws.deviceCode) {
+            deviceHeartbeats.set(ws.deviceCode, Date.now());
+            sendLatestDeviceMessage(ws, ws.deviceCode);
+          }
           return;
         }
 

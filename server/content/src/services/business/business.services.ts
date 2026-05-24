@@ -13,6 +13,7 @@ export const createBusinessService = async ({
   showLogo,
   showCompanyName,
   showProductImage,
+  showComboItemQuantity,
 }: {
   name: string;
   address?: string;
@@ -24,6 +25,7 @@ export const createBusinessService = async ({
   showLogo?: boolean;
   showCompanyName?: boolean;
   showProductImage?: boolean;
+  showComboItemQuantity?: boolean;
 }) => {
 
   const business = await prisma.business.create({
@@ -38,6 +40,7 @@ export const createBusinessService = async ({
       ...(showLogo !== undefined && { showLogo }),
       ...(showCompanyName !== undefined && { showCompanyName }),
       ...(showProductImage !== undefined && { showProductImage }),
+      ...(showComboItemQuantity !== undefined && { showComboItemQuantity }),
       isActive: true,
     } as any,
   });
@@ -57,6 +60,7 @@ export const updateBusinessService = async ({
   showLogo,
   showCompanyName,
   showProductImage,
+  showComboItemQuantity,
 }: {
   id: number;
   name?: string;
@@ -69,6 +73,7 @@ export const updateBusinessService = async ({
   showLogo?: boolean;
   showCompanyName?: boolean;
   showProductImage?: boolean;
+  showComboItemQuantity?: boolean;
 }) => {
 
   const business = await prisma.business.findUnique({
@@ -92,8 +97,16 @@ export const updateBusinessService = async ({
       ...(showLogo !== undefined && { showLogo }),
       ...(showCompanyName !== undefined && { showCompanyName }),
       ...(showProductImage !== undefined && { showProductImage }),
+      ...(showComboItemQuantity !== undefined && { showComboItemQuantity }),
     } as any,
   });
+
+  if (showComboItemQuantity !== undefined) {
+    await prisma.device.updateMany({
+      where: { businessId: id, isActive: true },
+      data: { showComboItemQuantity },
+    });
+  }
 
   void broadcastBusinessDisplayConfigs(id);
 

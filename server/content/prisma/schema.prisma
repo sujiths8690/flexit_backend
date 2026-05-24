@@ -20,13 +20,16 @@ model Business {
   showCompanyName   Boolean          @default(true)
   showProductImage  Boolean          @default(true)
   showDietTags      Boolean          @default(true)
+  showComboItemQuantity Boolean       @default(true)
   isActive          Boolean          @default(true)
   address           String?           @db.VarChar(100)
 
   categories        Category[]
   products          Product[]
   combos            ComboOffer[]
+  offers            Offer[]
   todaysStars       TodaysStar[]
+  notices           Notice[]
   settings          Setting[]
   blackList         BlackList[]
   devices           Device[]
@@ -45,6 +48,7 @@ model Device {
   orientation   String      @default("normal")
   menuTheme     String      @default("light")
   themeColor    String      @default("gold")
+  displayLanguage String    @default("english")
   displayContentMode String  @default("allCategories")
   selectedCategoryId Int?
   selectedMediaId Int?
@@ -61,6 +65,7 @@ model Device {
   showCompanyName   Boolean   @default(true)
   showProductImage  Boolean   @default(true)
   showDietTags      Boolean   @default(true)
+  showComboItemQuantity Boolean @default(true)
   headingFontScale  Float     @default(1.0)
   nameFontScale     Float     @default(1.0)
   descriptionFontScale Float  @default(1.0)
@@ -158,6 +163,9 @@ model Product {
   business          Business        @relation(fields: [businessId], references: [id])
 
   comboItems        ComboOfferItem[]
+  offerItems        OfferItem[]
+  freeInOffers      Offer[]          @relation("OfferFreeProduct")
+  freeInOfferItems  OfferItem[]      @relation("OfferItemFreeProduct")
   todaysStar        TodaysStar[]
   todaysOffer       TodaysOffer?
 
@@ -193,6 +201,47 @@ model ComboOfferItem {
   product           Product         @relation(fields: [productId], references: [id])
 }
 
+model Offer {
+  id                Int             @id @default(autoincrement())
+  name              String          @db.VarChar(50)
+  offerType         String          @db.VarChar(20)
+  discountPrice     Decimal?
+  buyQuantity       Int?
+  freeQuantity      Int?
+  startDate         DateTime?
+  endDate           DateTime?
+  isActive          Boolean         @default(true)
+
+  businessId        Int
+  business          Business        @relation(fields: [businessId], references: [id])
+
+  freeProductId     Int?
+  freeProduct       Product?        @relation("OfferFreeProduct", fields: [freeProductId], references: [id])
+
+  items             OfferItem[]
+}
+
+model OfferItem {
+  id                Int             @id @default(autoincrement())
+  quantity          Int             @default(1)
+  variantLabel      String?         @db.VarChar(50)
+  variantPrice      Decimal?
+  discountPrice     Decimal?
+  buyQuantity       Int?
+  freeQuantity      Int?
+  freeVariantLabel  String?         @db.VarChar(50)
+  freeVariantPrice  Decimal?
+
+  offerId           Int
+  offer             Offer           @relation(fields: [offerId], references: [id])
+
+  productId         Int
+  product           Product         @relation(fields: [productId], references: [id])
+
+  freeProductId     Int?
+  freeProduct       Product?        @relation("OfferItemFreeProduct", fields: [freeProductId], references: [id])
+}
+
 model TodaysStar {
   id                Int             @id @default(autoincrement())
   starDate          DateTime
@@ -205,6 +254,17 @@ model TodaysStar {
   product           Product         @relation(fields: [productId], references: [id])
 
   @@unique([businessId, starDate, productId])
+}
+
+model Notice {
+  id                Int             @id @default(autoincrement())
+  content           String          @db.Text
+  isActive          Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  businessId        Int
+  business          Business        @relation(fields: [businessId], references: [id])
 }
 
 model TodaysOffer {

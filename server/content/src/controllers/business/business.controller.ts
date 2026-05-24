@@ -25,7 +25,8 @@ export const createBusinessController = async (req: Request, res: Response) => {
       showDescription,
       showLogo,
       showCompanyName,
-      showProductImage
+      showProductImage,
+      showComboItemQuantity
     } = req.body;
 
     const business = await createBusinessService({
@@ -38,7 +39,8 @@ export const createBusinessController = async (req: Request, res: Response) => {
       showDescription,
       showLogo,
       showCompanyName,
-      showProductImage
+      showProductImage,
+      showComboItemQuantity
     });
 
     return successResponse(
@@ -100,7 +102,8 @@ export const updateBusinessController = async (req: Request, res: Response) => {
       showDescription,
       showLogo,
       showCompanyName,
-      showProductImage
+      showProductImage,
+      showComboItemQuantity
     } = req.body;
 
     const business = await updateBusinessService({
@@ -114,7 +117,8 @@ export const updateBusinessController = async (req: Request, res: Response) => {
       showDescription,
       showLogo,
       showCompanyName,
-      showProductImage
+      showProductImage,
+      showComboItemQuantity
     });
 
     return successResponse(

@@ -11,6 +11,13 @@ const userActivityTarget =
 
 app.use(cors());
 
+app.get(/^\/api\/content\/device\/[^/]+\/config$/, (req, res) => {
+  res.status(409).json({
+    success: false,
+    message: "Device config is delivered through the device websocket only",
+  });
+});
+
 app.use((req, res, next) => {
   console.log("🔥 Incoming:", req.method, req.url);
   next();

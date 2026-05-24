@@ -3,7 +3,6 @@ import {
     registerDeviceService,
     pairDeviceByCodeService,
     listDevicesByBusinessService,
-    getDeviceConfigByCodeService,
     updateDeviceConfigService,
     deleteDeviceService
 } from "../../services/device/deviceRegistration.service";
@@ -162,13 +161,10 @@ export const getDeviceConfigController = async (req: Request, res: Response) => 
             );
         }
 
-        const config = await getDeviceConfigByCodeService(deviceCode);
-
-        return successResponse(
+        return errorResponse(
             res,
-            config,
-            "Device config fetched successfully",
-            HTTP_STATUS.OK
+            "Device config is delivered through the device websocket only",
+            HTTP_STATUS.CONFLICT
         );
 
     } catch (error: any) {
@@ -201,6 +197,7 @@ export const updateDeviceConfigController = async (req: Request, res: Response) 
             orientation,
             menuTheme,
             themeColor,
+            displayLanguage,
             displayContentMode,
             selectedCategoryId,
             selectedMediaId,
@@ -217,6 +214,7 @@ export const updateDeviceConfigController = async (req: Request, res: Response) 
             showCompanyName,
             showProductImage,
             showDietTags,
+            showComboItemQuantity,
             headingFontScale,
             nameFontScale,
             descriptionFontScale,
@@ -231,6 +229,7 @@ export const updateDeviceConfigController = async (req: Request, res: Response) 
             orientation,
             menuTheme,
             themeColor,
+            displayLanguage,
             displayContentMode,
             selectedCategoryId,
             selectedMediaId,
@@ -247,6 +246,7 @@ export const updateDeviceConfigController = async (req: Request, res: Response) 
             showCompanyName,
             showProductImage,
             showDietTags,
+            showComboItemQuantity,
             headingFontScale,
             nameFontScale,
             descriptionFontScale,

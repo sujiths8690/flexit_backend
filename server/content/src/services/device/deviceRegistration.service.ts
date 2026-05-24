@@ -24,6 +24,7 @@ interface DeviceConfigInput {
     orientation?: string;
     menuTheme?: string;
     themeColor?: string;
+    displayLanguage?: string;
     displayContentMode?: string;
     selectedCategoryId?: number | null;
     selectedMediaId?: number | null;
@@ -40,6 +41,7 @@ interface DeviceConfigInput {
     showCompanyName?: boolean;
     showProductImage?: boolean;
     showDietTags?: boolean;
+    showComboItemQuantity?: boolean;
     headingFontScale?: number;
     nameFontScale?: number;
     descriptionFontScale?: number;
@@ -78,6 +80,8 @@ const allowedContentModes = new Set([
     "veg",
     "nonVeg",
     "comboOffers",
+    "offers",
+    "notices",
     "todaysStar"
 ]);
 const canonicalContentModes: Record<string, string> = {
@@ -90,6 +94,10 @@ const canonicalContentModes: Record<string, string> = {
     non_veg: "nonVeg",
     combooffers: "comboOffers",
     combooffer: "comboOffers",
+    offers: "offers",
+    offer: "offers",
+    notices: "notices",
+    notice: "notices",
     todaysstar: "todaysStar",
     todaystar: "todaysStar"
 };
@@ -100,12 +108,20 @@ const contentModeOrder = [
     "allMedia",
     "media",
     "comboOffers",
+    "offers",
+    "notices",
     "todaysStar"
 ];
-const allContentModes = ["category", "veg", "nonVeg", "allMedia", "comboOffers", "todaysStar"];
+const allContentModes = ["category", "veg", "nonVeg", "allMedia", "comboOffers", "offers", "notices", "todaysStar"];
 const allowedTransitionStyles = new Set(["fade", "slide", "zoom", "flip"]);
+const allowedDisplayLanguages = new Set(["english", "malayalam"]);
 const MIN_FONT_SCALE = 0.8;
 const MAX_FONT_SCALE = 1.2;
+
+const todayStart = () => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+};
 
 const normalizeDisplaySetting = (value?: string) =>
     typeof value === "string" ? value.trim().toLowerCase() : value;
@@ -162,6 +178,8 @@ const deviceDisplaySettings = (device: any, business?: any) => ({
     showCompanyName: resolveDeviceBool(device, business, "showCompanyName"),
     showProductImage: resolveDeviceBool(device, business, "showProductImage"),
     showDietTags: resolveDeviceBool(device, business, "showDietTags"),
+    showComboItemQuantity: resolveDeviceBool(device, business, "showComboItemQuantity"),
+    displayLanguage: device.displayLanguage ?? "english",
     headingFontScale: device.headingFontScale ?? 1,
     nameFontScale: device.nameFontScale ?? 1,
     descriptionFontScale: device.descriptionFontScale ?? 1,
@@ -238,6 +256,39 @@ const serializeProduct = (product: any, includeDietTags = true) => {
     };
 };
 
+const comboItemUnitPrice = (item: any) => {
+    const variantPrice = item.variantPrice === null || item.variantPrice === undefined ? null : Number(item.variantPrice);
+    if (variantPrice !== null && variantPrice > 0) return variantPrice;
+
+    const variants = Array.isArray(item.product?.priceVariants) ? item.product.priceVariants : [];
+    const selectedLabel = item.variantLabel?.trim().toLowerCase();
+    if (selectedLabel) {
+        const selectedVariant = variants.find(
+            (variant: any) => variant?.label?.trim().toLowerCase() === selectedLabel
+        );
+        if (selectedVariant?.price !== undefined && selectedVariant?.price !== null) {
+            return Number(selectedVariant.price);
+        }
+    }
+
+    const productPrice = Number(item.product?.price ?? 0);
+    if (productPrice > 0) return productPrice;
+
+    const fullVariant = variants.find(
+        (variant: any) => variant?.label?.trim().toLowerCase() === "full"
+    );
+    if (fullVariant?.price !== undefined && fullVariant?.price !== null) {
+        return Number(fullVariant.price);
+    }
+
+    const fallbackVariant = variants[variants.length - 1];
+    if (fallbackVariant?.price !== undefined && fallbackVariant?.price !== null) {
+        return Number(fallbackVariant.price);
+    }
+
+    return productPrice;
+};
+
 const serializeMedia = (media: any) => ({
     id: media.id,
     fileName: media.fileName,
@@ -255,7 +306,7 @@ const serializeComboOffer = (combo: any, includeDietTags = true) => {
     })).filter((item: any) => item.product !== null);
     const originalPrice = (combo.items ?? []).reduce(
         (total: number, item: any) =>
-            total + Number(item.variantPrice ?? item.product?.price ?? 0) * Number(item.quantity ?? 1),
+            total + comboItemUnitPrice(item) * Number(item.quantity ?? 1),
         0
     );
 
@@ -277,6 +328,76 @@ const serializeComboOffer = (combo: any, includeDietTags = true) => {
         items: comboItems
     };
 };
+
+const serializeOffer = (offer: any, includeDietTags = true) => {
+    const offerItems = (offer.items ?? []).map((item: any) => ({
+        id: item.id,
+        quantity: item.quantity ?? 1,
+        variantLabel: item.variantLabel ?? null,
+        variantPrice: item.variantPrice === null || item.variantPrice === undefined ? null : Number(item.variantPrice),
+        discountPrice: item.discountPrice === null || item.discountPrice === undefined ? null : Number(item.discountPrice),
+        buyQuantity: item.buyQuantity ?? item.quantity ?? offer.buyQuantity ?? 1,
+        freeQuantity: item.freeQuantity ?? offer.freeQuantity ?? 1,
+        freeProductId: item.freeProductId ?? offer.freeProductId ?? null,
+        freeVariantLabel: item.freeVariantLabel ?? null,
+        freeVariantPrice: item.freeVariantPrice === null || item.freeVariantPrice === undefined ? null : Number(item.freeVariantPrice),
+        freeProduct: item.freeProduct
+            ? serializeProduct(item.freeProduct, includeDietTags)
+            : offer.freeProduct
+                ? serializeProduct(offer.freeProduct, includeDietTags)
+                : null,
+        product: item.product ? serializeProduct(item.product, includeDietTags) : null
+    })).filter((item: any) => item.product !== null);
+    const originalPrice = (offer.items ?? []).reduce(
+        (total: number, item: any) =>
+            total + comboItemUnitPrice(item) * Number(item.quantity ?? 1),
+        0
+    );
+    const discountPrice = offer.discountPrice === null || offer.discountPrice === undefined
+        ? null
+        : Number(offer.discountPrice);
+    const freeProduct = offer.freeProduct
+        ? serializeProduct(offer.freeProduct, includeDietTags)
+        : null;
+    const itemDiscounts = offerItems
+        .map((item: any) => item.discountPrice)
+        .filter((price: any) => typeof price === "number" && Number.isFinite(price));
+    const lowestDiscountPrice = itemDiscounts.length ? Math.min(...itemDiscounts) : discountPrice;
+    const firstFreeItem = offerItems.find((item: any) => item.freeProduct);
+    const description = offer.offerType === "free" && (firstFreeItem || freeProduct)
+        ? `Buy ${firstFreeItem?.buyQuantity ?? offer.buyQuantity ?? 1}, get ${firstFreeItem?.freeQuantity ?? offer.freeQuantity ?? 1} ${(firstFreeItem?.freeProduct ?? freeProduct).name} free`
+        : itemDiscounts.length > 1
+            ? `Offer prices from Rs. ${(lowestDiscountPrice ?? 0).toFixed(0)}`
+            : `Offer price Rs. ${(lowestDiscountPrice ?? 0).toFixed(0)}`;
+
+    return {
+        id: `offer-${offer.id}`,
+        name: offer.name,
+        description,
+        price: lowestDiscountPrice ?? originalPrice,
+        priceVariants: [],
+        imageUrl: null,
+        category: "all",
+        categoryId: null,
+        categoryName: "Offers",
+        isAvailable: true,
+        isFeatured: true,
+        tags: [offer.offerType === "free" ? "Free offer" : "Discount"],
+        originalPrice,
+        offerType: offer.offerType,
+        buyQuantity: offer.buyQuantity,
+        freeQuantity: offer.freeQuantity,
+        freeProduct,
+        offerItems,
+        items: offerItems
+    };
+};
+
+const serializeNotice = (notice: any) => ({
+    id: notice.id,
+    content: notice.content,
+    createdAt: notice.createdAt
+});
 
 /* ================================
    REGISTER DEVICE
@@ -541,6 +662,8 @@ const getDeviceConfigByCodeService = async (deviceCode: string) => {
         const isMediaMode = contentModes.includes("allMedia") || contentModes.includes("media");
         const isOnlyMediaMode = isMediaMode && contentModes.every((mode) => mode === "allMedia" || mode === "media");
         const isComboMode = contentModes.includes("comboOffers");
+        const isOffersMode = contentModes.includes("offers");
+        const isNoticesMode = contentModes.includes("notices");
         const isTodaysStarMode = contentModes.includes("todaysStar");
         const isVegMode = contentModes.includes("veg");
         const isNonVegMode = contentModes.includes("nonVeg");
@@ -573,6 +696,7 @@ const getDeviceConfigByCodeService = async (deviceCode: string) => {
             : [];
         const todaysStarIds = new Set(todaysStars.map((star) => star.productId));
         let menuItems: any[] = [];
+        let noticeItems: any[] = [];
         try {
             const productItems = !isOnlyMediaMode && isCategoryMode
                 ? await prisma.product.findMany({
@@ -586,7 +710,30 @@ const getDeviceConfigByCodeService = async (deviceCode: string) => {
                     where: { businessId: device.businessId, isActive: true },
                     include: {
                         items: {
-                            include: { product: { include: { category: true } } },
+                            include: {
+                                product: { include: { category: true } }
+                            },
+                            orderBy: { id: "asc" }
+                        }
+                    },
+                    orderBy: { id: "desc" }
+                })
+                : [];
+            const offerItems = !isOnlyMediaMode && isOffersMode
+                ? await prisma.offer.findMany({
+                    where: {
+                        businessId: device.businessId,
+                        isActive: true,
+                        startDate: { lte: todayStart() },
+                        endDate: { gte: todayStart() }
+                    },
+                    include: {
+                        freeProduct: { include: { category: true } },
+                        items: {
+                            include: {
+                                product: { include: { category: true } },
+                                freeProduct: { include: { category: true } }
+                            },
                             orderBy: { id: "asc" }
                         }
                     },
@@ -618,9 +765,17 @@ const getDeviceConfigByCodeService = async (deviceCode: string) => {
             const starItems = !isOnlyMediaMode && isTodaysStarMode
                 ? todaysStars.map((star) => star.product)
                 : [];
+            noticeItems = !isOnlyMediaMode && isNoticesMode
+                ? await prisma.notice.findMany({
+                    where: { businessId: device.businessId, isActive: true },
+                    orderBy: { createdAt: "desc" }
+                })
+                : [];
             const seenMenuItemKeys = new Set<string>();
-            menuItems = [...productItems, ...vegItems, ...nonVegItems, ...comboItems, ...starItems].filter((item) => {
-                const key = Array.isArray((item as any).items) ? `combo-${item.id}` : `product-${item.id}`;
+            menuItems = [...productItems, ...vegItems, ...nonVegItems, ...comboItems, ...offerItems, ...starItems].filter((item) => {
+                const key = Array.isArray((item as any).items)
+                    ? `${(item as any).offerType ? "offer" : "combo"}-${item.id}`
+                    : `product-${item.id}`;
                 if (seenMenuItemKeys.has(key)) return false;
                 seenMenuItemKeys.add(key);
                 return true;
@@ -652,9 +807,12 @@ const getDeviceConfigByCodeService = async (deviceCode: string) => {
                 ...deviceScheduleSettings(device),
                 ...displaySettings,
                 mediaItems: mediaItems.map(serializeMedia),
+                notices: noticeItems.map(serializeNotice),
                 menuItems: menuItems.map((item) =>
                     Array.isArray(item.items)
-                        ? serializeComboOffer(item, displaySettings.showDietTags)
+                        ? (item as any).offerType
+                            ? serializeOffer(item, displaySettings.showDietTags)
+                            : serializeComboOffer(item, displaySettings.showDietTags)
                         : serializeProduct({
                             ...item,
                             isTodaysStar: todaysStarIds.has(item.id)
@@ -679,6 +837,7 @@ const updateDeviceConfigService = async ({
     orientation,
     menuTheme,
     themeColor,
+    displayLanguage,
     displayContentMode,
     selectedCategoryId,
     selectedMediaId,
@@ -695,6 +854,7 @@ const updateDeviceConfigService = async ({
     showCompanyName,
     showProductImage,
     showDietTags,
+    showComboItemQuantity,
     headingFontScale,
     nameFontScale,
     descriptionFontScale,
@@ -748,6 +908,7 @@ const updateDeviceConfigService = async ({
 
         const normalizedMenuTheme = normalizeDisplaySetting(menuTheme);
         const normalizedThemeColor = normalizeDisplaySetting(themeColor);
+        const normalizedDisplayLanguage = normalizeDisplaySetting(displayLanguage);
         const normalizedTransitionStyle = normalizeDisplaySetting(transitionStyle);
 
         if (normalizedMenuTheme !== undefined) {
@@ -762,6 +923,13 @@ const updateDeviceConfigService = async ({
                 throw new Error("INVALID_THEME_COLOR");
             }
             updateData.themeColor = normalizedThemeColor;
+        }
+
+        if (normalizedDisplayLanguage !== undefined) {
+            if (!allowedDisplayLanguages.has(normalizedDisplayLanguage)) {
+                throw new Error("INVALID_DISPLAY_LANGUAGE");
+            }
+            updateData.displayLanguage = normalizedDisplayLanguage;
         }
 
         if (displayContentMode !== undefined) {
@@ -849,6 +1017,7 @@ const updateDeviceConfigService = async ({
         if (showCompanyName !== undefined) updateData.showCompanyName = Boolean(showCompanyName);
         if (showProductImage !== undefined) updateData.showProductImage = Boolean(showProductImage);
         if (showDietTags !== undefined) updateData.showDietTags = Boolean(showDietTags);
+        if (showComboItemQuantity !== undefined) updateData.showComboItemQuantity = Boolean(showComboItemQuantity);
 
         const validatedHeadingScale = validateFontScale(headingFontScale, "heading_font_scale");
         const validatedNameScale = validateFontScale(nameFontScale, "name_font_scale");
