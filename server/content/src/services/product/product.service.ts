@@ -2,6 +2,7 @@ import prisma from "../../config/prisma";
 import { VegType } from "@prisma/client";
 import { logActivity } from "../../utils/activityClient";
 import { sendRealtimeUpdate } from "../../utils/realtimeClient";
+import { invalidateMenuContentOverviewCache } from "../contentFeature/contentFeature.service";
 import { broadcastBusinessDisplayConfigs } from "../../utils/deviceDisplayRealtime";
 
 
@@ -82,6 +83,7 @@ const createProductService= async({
             isAvailable: product.isAvailable,
         }
 
+        void invalidateMenuContentOverviewCache(businessId);
         sendRealtimeUpdate(
             businessId,
             "PRODUCT_CREATED",
@@ -188,6 +190,7 @@ const updateProductService= async({
             isAvailable: updatedProduct.isAvailable,
         }
 
+        void invalidateMenuContentOverviewCache(businessId);
         sendRealtimeUpdate(
             businessId,
             "DEVICE_UPDATED",
@@ -297,6 +300,7 @@ const deleteProductService= async(productId:number, businessId:number, userId:nu
             "DEVICE_DELETED",
             deleteProduct
         );
+        void invalidateMenuContentOverviewCache(businessId);
 
         void broadcastBusinessDisplayConfigs(businessId);
 

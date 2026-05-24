@@ -7,6 +7,7 @@ import {
   deleteNotice,
   deleteOffer,
   getComboOffers,
+  getMenuContentOverview,
   getMenuProducts,
   getNotices,
   getOffers,
@@ -24,6 +25,7 @@ const router = Router();
 
 router.use(authenticate);
 
+router.get("/all", getMenuContentOverview);
 router.get("/products", getMenuProducts);
 
 router.get("/combo-offers", getComboOffers);

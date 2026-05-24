@@ -9,6 +9,7 @@ import {
   deleteNoticeService,
   deleteOfferService,
   getComboOffersService,
+  getMenuContentOverviewService,
   getMenuProductsService,
   getNoticesService,
   getOffersService,
@@ -22,6 +23,24 @@ import {
 const messageFor = (error: any) => error.message || "Request failed";
 const bearerTokenFromRequest = (req: Request) =>
   req.headers.authorization?.split(" ")[1];
+
+export const getMenuContentOverview = async (req: Request, res: Response) => {
+  try {
+    const content = await getMenuContentOverviewService(req.user!.businessId);
+    return successResponse(
+      res,
+      content,
+      "Menu content fetched",
+      HTTP_STATUS.OK
+    );
+  } catch (error: any) {
+    return errorResponse(
+      res,
+      messageFor(error),
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
+    );
+  }
+};
 
 export const getMenuProducts = async (req: Request, res: Response) => {
   try {

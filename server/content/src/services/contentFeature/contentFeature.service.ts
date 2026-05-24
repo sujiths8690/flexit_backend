@@ -1,6 +1,11 @@
 import prisma from "../../config/prisma";
 import { sendRealtimeUpdate } from "../../utils/realtimeClient";
 import { broadcastBusinessDisplayConfigs } from "../../utils/deviceDisplayRealtime";
+import {
+  deleteCachedKey,
+  getCachedJson,
+  setCachedJson,
+} from "../../utils/cacheClient";
 
 type ComboItemInput = {
   productId: number;
@@ -149,6 +154,12 @@ const assertBusinessProducts = async (
   }
 };
 
+const menuContentOverviewCacheKey = (businessId: number) =>
+  `business:${businessId}:menu-content:all`;
+
+export const invalidateMenuContentOverviewCache = async (businessId: number) =>
+  deleteCachedKey(menuContentOverviewCacheKey(businessId));
+
 export const getMenuProductsService = async (businessId: number) => {
   const products = await prisma.product.findMany({
     where: { businessId, isActive: true },
@@ -156,6 +167,31 @@ export const getMenuProductsService = async (businessId: number) => {
     orderBy: [{ category: { position: "asc" } }, { position: "asc" }],
   });
   return products.map(productDto);
+};
+
+export const getMenuContentOverviewService = async (businessId: number) => {
+  const cacheKey = menuContentOverviewCacheKey(businessId);
+  const cached = await getCachedJson(cacheKey);
+  if (cached) return cached;
+
+  const [products, comboOffers, offers, notices, todaysStar] =
+    await Promise.all([
+      getMenuProductsService(businessId),
+      getComboOffersService(businessId),
+      getOffersService(businessId),
+      getNoticesService(businessId),
+      getTodaysStarService(businessId),
+    ]);
+
+  const overview = {
+    products,
+    comboOffers,
+    offers,
+    notices,
+    todaysStar,
+  };
+  await setCachedJson(cacheKey, overview);
+  return overview;
 };
 
 export const getComboOffersService = async (businessId: number) => {
@@ -347,6 +383,7 @@ export const createOfferService = async (input: OfferInput) => {
       },
     },
   });
+  void invalidateMenuContentOverviewCache(input.businessId);
   sendRealtimeUpdate(input.businessId, "OFFERS_UPDATED", offer, input.token);
   void broadcastBusinessDisplayConfigs(input.businessId);
   return offerDto(offer);
@@ -389,6 +426,7 @@ export const updateOfferService = async (input: OfferInput) => {
       },
     });
   });
+  void invalidateMenuContentOverviewCache(input.businessId);
   sendRealtimeUpdate(input.businessId, "OFFERS_UPDATED", offer, input.token);
   void broadcastBusinessDisplayConfigs(input.businessId);
   return offerDto(offer);
@@ -407,6 +445,7 @@ export const deleteOfferService = async (
     where: { id: offerId },
     data: { isActive: false },
   });
+  void invalidateMenuContentOverviewCache(businessId);
   sendRealtimeUpdate(businessId, "OFFERS_UPDATED", { id: offerId }, token);
   void broadcastBusinessDisplayConfigs(businessId);
 };
@@ -421,6 +460,7 @@ export const createNoticeService = async (input: NoticeInput) => {
       businessId: input.businessId,
     },
   });
+  void invalidateMenuContentOverviewCache(input.businessId);
   sendRealtimeUpdate(input.businessId, "NOTICES_UPDATED", notice, input.token);
   void broadcastBusinessDisplayConfigs(input.businessId);
   return noticeDto(notice);
@@ -444,6 +484,7 @@ export const updateNoticeService = async (input: NoticeInput) => {
     where: { id: input.noticeId },
     data: { content },
   });
+  void invalidateMenuContentOverviewCache(input.businessId);
   sendRealtimeUpdate(input.businessId, "NOTICES_UPDATED", notice, input.token);
   void broadcastBusinessDisplayConfigs(input.businessId);
   return noticeDto(notice);
@@ -462,6 +503,7 @@ export const deleteNoticeService = async (
     where: { id: noticeId },
     data: { isActive: false },
   });
+  void invalidateMenuContentOverviewCache(businessId);
   sendRealtimeUpdate(businessId, "NOTICES_UPDATED", { id: noticeId }, token);
   void broadcastBusinessDisplayConfigs(businessId);
 };
@@ -504,6 +546,7 @@ export const createComboOfferService = async (input: ComboInput) => {
       items: { include: { product: { include: { category: true } } } },
     },
   });
+  void invalidateMenuContentOverviewCache(input.businessId);
   sendRealtimeUpdate(input.businessId, "COMBO_UPDATED", combo, input.token);
   void broadcastBusinessDisplayConfigs(input.businessId);
   return comboDto(combo);
@@ -556,6 +599,7 @@ export const updateComboOfferService = async (input: ComboInput) => {
       },
     });
   });
+  void invalidateMenuContentOverviewCache(input.businessId);
   sendRealtimeUpdate(input.businessId, "COMBO_UPDATED", combo, input.token);
   void broadcastBusinessDisplayConfigs(input.businessId);
   return comboDto(combo);
@@ -574,6 +618,7 @@ export const deleteComboOfferService = async (
     where: { id: comboId },
     data: { isActive: false },
   });
+  void invalidateMenuContentOverviewCache(businessId);
   sendRealtimeUpdate(businessId, "COMBO_UPDATED", { id: comboId }, token);
   void broadcastBusinessDisplayConfigs(businessId);
 };
@@ -626,6 +671,7 @@ export const setTodaysStarService = async (
     product: productDto(stars[0].product),
     products: stars.map((star) => productDto(star.product)),
   };
+  void invalidateMenuContentOverviewCache(businessId);
   sendRealtimeUpdate(businessId, "TODAYS_STAR_UPDATED", response, token);
   void broadcastBusinessDisplayConfigs(businessId);
   return response;

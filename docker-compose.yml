@@ -41,11 +41,21 @@ services:
     restart: unless-stopped
     ports:
       - "4002:3002"
+    environment:
+      REDIS_URL: redis://redis:6379
     env_file:
       - ./server/content/.env
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_started
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
 
   realtime:
     build: ./server/realtime
