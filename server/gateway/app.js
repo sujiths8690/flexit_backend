@@ -4,6 +4,8 @@ const { createProxyMiddleware } = require("http-proxy-middleware");
 
 const app=express();
 const authTarget = process.env.AUTH_SERVICE_URL || "http://auth:3001";
+const adminAuthTarget =
+  process.env.ADMIN_AUTH_SERVICE_URL || "http://admin-auth:3005";
 const contentTarget = process.env.CONTENT_SERVICE_URL || "http://content:3002/api";
 const realtimeTarget = process.env.REALTIME_SERVICE_URL || "http://realtime:3003";
 const userActivityTarget =
@@ -22,6 +24,18 @@ app.use((req, res, next) => {
   console.log("🔥 Incoming:", req.method, req.url);
   next();
 });
+
+app.use(
+  "/api/admin-auth",
+  createProxyMiddleware({
+    target: adminAuthTarget,
+    changeOrigin: true,
+    pathRewrite: {
+      "^/": "/api/admin-auth/",
+    },
+    logLevel: "debug",
+  })
+);
 
 app.use(
   "/api/auth",

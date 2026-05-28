@@ -41,6 +41,87 @@ interface UpdateOwnProfileInput {
   profileImageUrl?: string;
 }
 
+const adminUserResponse = (user: any) => {
+    const fullName = [user.firstName, user.lastName]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+
+    return {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        profileImageUrl: user.profileImageUrl,
+        role: user.role,
+        businessId: user.businessId,
+        isActive: user.isActive,
+        lastLogin: user.lastLogin,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        name: fullName || user.username || user.email || `User ${user.id}`,
+        status: user.isActive ? "Active" : "Banned",
+    };
+};
+
+export const getAdminUserSummaryService = async () => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [totalUsers, activeUsers, newUsersThisMonth] = await Promise.all([
+        prisma.user.count(),
+        prisma.user.count({ where: { isActive: true } }),
+        prisma.user.count({ where: { createdAt: { gte: monthStart } } }),
+    ]);
+
+    return {
+        totalUsers,
+        activeUsers,
+        newUsersThisMonth,
+    };
+};
+
+export const listAdminUsersService = async ({
+    search,
+    status,
+}: {
+    search?: string;
+    status?: string;
+}) => {
+    const trimmedSearch = search?.trim();
+    const normalizedStatus = status?.trim().toLowerCase();
+    const where: any = {};
+
+    if (trimmedSearch) {
+        const idSearch = Number(trimmedSearch);
+        where.OR = [
+            { username: { contains: trimmedSearch } },
+            { email: { contains: trimmedSearch } },
+            { firstName: { contains: trimmedSearch } },
+            { lastName: { contains: trimmedSearch } },
+            ...(Number.isNaN(idSearch) ? [] : [{ id: idSearch }]),
+        ];
+    }
+
+    if (normalizedStatus === "active") {
+        where.isActive = true;
+    } else if (normalizedStatus === "banned") {
+        where.isActive = false;
+    } else if (normalizedStatus === "flagged") {
+        return [];
+    }
+
+    const users = await prisma.user.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take: 200,
+    });
+
+    return users.map(adminUserResponse);
+};
+
 
 export const createUserService= async({
     email,

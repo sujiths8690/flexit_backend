@@ -3,12 +3,15 @@ import {
   registerDeviceController,
   pairDeviceController,
   listDevicesController,
+  updateDeviceMetadataController,
+  getAdminBusinessDeviceOverviewController,
   getDeviceConfigController,
   updateDeviceConfigController,
   deleteDeviceController,
 } from "../../controllers/device/deviceRegistrtaion.controller";
 import { Role } from "../../types/role";
 import { authenticate } from "../../middleware/auth";
+import { authenticateAdminToken } from "../../middleware/adminAuth";
 import { allowRoles } from "../../middleware/role";
 
 const router = Router();
@@ -19,6 +22,17 @@ const router = Router();
 router.get(
   "/:deviceCode/config",
   getDeviceConfigController
+);
+
+router.post(
+  "/:deviceCode/metadata",
+  updateDeviceMetadataController
+);
+
+router.get(
+  "/admin/business/:businessId/overview",
+  authenticateAdminToken,
+  getAdminBusinessDeviceOverviewController
 );
 
 /**

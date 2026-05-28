@@ -1,7 +1,9 @@
 import { Router } from "express";
 import {
   createUser,
+  getAdminUserSummary,
   getUser,
+  listAdminUsers,
   updateUser,
   getOwnProfile,
   updateOwnProfile,
@@ -14,6 +16,7 @@ import {
 } from "../../controllers/user/user.controller";
 
 import { authenticate } from "../../middleware/auth";
+import { authenticateAdminToken } from "../../middleware/adminAuth";
 import { allowRoles } from "../../middleware/role";
 import { Role } from "@prisma/client";
 
@@ -29,6 +32,18 @@ router.patch(
   "/me",
   authenticate,
   updateOwnProfile
+);
+
+router.get(
+  "/admin/summary",
+  authenticateAdminToken,
+  getAdminUserSummary
+);
+
+router.get(
+  "/admin/list",
+  authenticateAdminToken,
+  listAdminUsers
 );
 
 /**

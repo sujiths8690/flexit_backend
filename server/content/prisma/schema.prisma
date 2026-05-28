@@ -43,6 +43,29 @@ model Device {
   id            Int       @id @default(autoincrement())
   deviceCode    String    @unique
   name          String?
+  manufacturer  String?
+  brand         String?
+  model         String?
+  product       String?
+  deviceName    String?
+  board         String?
+  hardware      String?
+  androidVersion String?
+  sdkInt        Int?
+  buildId       String?
+  buildDisplay  String?
+  fingerprint   String?   @db.Text
+  serialNumber  String?
+  androidId     String?
+  macAddress    String?
+  ipAddress     String?
+  screenWidth   Int?
+  screenHeight  Int?
+  screenPixelRatio Float?
+  platform      String?
+  osVersion     String?   @db.Text
+  appVersion    String?
+  rawDeviceInfo Json?
 
   displayMode   DisplayMode @default(FULL_MENU)
   orientation   String      @default("normal")

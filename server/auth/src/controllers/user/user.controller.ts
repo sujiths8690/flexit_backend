@@ -1,8 +1,49 @@
 import { Request, Response } from "express";
-import { changePasswordService, createUserService, disableUserService, enableUserService, getOwnProfileService, getUserService, requestPasswordResetService, resetPasswordWithTokenService, updateOwnProfileService, updateUserService, verifyCurrentPasswordService } from "../../services/user/user.service";
+import { changePasswordService, createUserService, disableUserService, enableUserService, getAdminUserSummaryService, getOwnProfileService, getUserService, listAdminUsersService, requestPasswordResetService, resetPasswordWithTokenService, updateOwnProfileService, updateUserService, verifyCurrentPasswordService } from "../../services/user/user.service";
 import { Role } from "@prisma/client";
 import {errorResponse, successResponse} from "../../utils/response.helper"
 import { HTTP_STATUS } from "../../utils/httpStatus";
+
+export const getAdminUserSummary = async (_req: Request, res: Response) => {
+    try {
+        const summary = await getAdminUserSummaryService();
+
+        return successResponse(
+            res,
+            summary,
+            "User summary fetched successfully",
+            HTTP_STATUS.OK
+        );
+    } catch {
+        return errorResponse(
+            res,
+            "Failed to fetch user summary",
+            HTTP_STATUS.INTERNAL_SERVER_ERROR
+        );
+    }
+};
+
+export const listAdminUsers = async (req: Request, res: Response) => {
+    try {
+        const users = await listAdminUsersService({
+            search: req.query.search?.toString(),
+            status: req.query.status?.toString(),
+        });
+
+        return successResponse(
+            res,
+            { users },
+            "Users fetched successfully",
+            HTTP_STATUS.OK
+        );
+    } catch {
+        return errorResponse(
+            res,
+            "Failed to fetch users",
+            HTTP_STATUS.INTERNAL_SERVER_ERROR
+        );
+    }
+};
 
 
 export const createUser= async(req:Request, res:Response)=> {

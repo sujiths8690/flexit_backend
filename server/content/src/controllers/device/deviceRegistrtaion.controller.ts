@@ -3,6 +3,8 @@ import {
     registerDeviceService,
     pairDeviceByCodeService,
     listDevicesByBusinessService,
+    updateDeviceMetadataByCodeService,
+    getAdminBusinessDeviceOverviewService,
     updateDeviceConfigService,
     deleteDeviceService
 } from "../../services/device/deviceRegistration.service";
@@ -19,7 +21,7 @@ const bearerTokenFromRequest = (req: Request) =>
 ================================ */
 export const registerDeviceController = async (req: Request, res: Response) => {
     try {
-        const { name } = req.body;
+        const { name, deviceInfo } = req.body;
 
         if (!name) {
             return errorResponse(
@@ -33,7 +35,8 @@ export const registerDeviceController = async (req: Request, res: Response) => {
             name,
             businessId: req.user!.businessId,
             userId: req.user!.userId,
-            token: bearerTokenFromRequest(req)
+            token: bearerTokenFromRequest(req),
+            deviceInfo
         });
 
         return successResponse(
@@ -63,7 +66,7 @@ export const registerDeviceController = async (req: Request, res: Response) => {
 ================================ */
 export const pairDeviceController = async (req: Request, res: Response) => {
     try {
-        const { deviceCode, name, businessId: bodyBusinessId } = req.body;
+        const { deviceCode, name, businessId: bodyBusinessId, deviceInfo } = req.body;
 
         if (!deviceCode || typeof deviceCode !== "string") {
             return errorResponse(
@@ -89,7 +92,8 @@ export const pairDeviceController = async (req: Request, res: Response) => {
             name,
             businessId,
             userId: req.user!.userId,
-            token: bearerTokenFromRequest(req)
+            token: bearerTokenFromRequest(req),
+            deviceInfo
         });
 
         return successResponse(
@@ -137,6 +141,95 @@ export const listDevicesController = async (req: Request, res: Response) => {
         );
 
     } catch (error: any) {
+        return errorResponse(
+            res,
+            error.message,
+            HTTP_STATUS.INTERNAL_SERVER_ERROR
+        );
+    }
+};
+
+/* ================================
+   PUBLIC TV DEVICE METADATA UPDATE
+================================ */
+export const updateDeviceMetadataController = async (
+    req: Request,
+    res: Response
+) => {
+    try {
+        const { deviceCode } = req.params;
+        const { deviceInfo } = req.body;
+
+        if (!deviceCode || typeof deviceCode !== "string") {
+            return errorResponse(
+                res,
+                "Device code is required",
+                HTTP_STATUS.BAD_REQUEST
+            );
+        }
+
+        const device = await updateDeviceMetadataByCodeService(
+            deviceCode,
+            deviceInfo
+        );
+
+        return successResponse(
+            res,
+            device,
+            "Device metadata updated successfully",
+            HTTP_STATUS.OK
+        );
+    } catch (error: any) {
+        if (error.message === "DEVICE_NOT_FOUND") {
+            return errorResponse(res, "Device not found", HTTP_STATUS.NOT_FOUND);
+        }
+
+        if (
+            error.message === "DEVICE_CODE_REQUIRED" ||
+            error.message === "DEVICE_INFO_REQUIRED"
+        ) {
+            return errorResponse(res, error.message, HTTP_STATUS.BAD_REQUEST);
+        }
+
+        return errorResponse(
+            res,
+            error.message,
+            HTTP_STATUS.INTERNAL_SERVER_ERROR
+        );
+    }
+};
+
+/* ================================
+   ADMIN BUSINESS + DISPLAY DEVICES
+================================ */
+export const getAdminBusinessDeviceOverviewController = async (
+    req: Request,
+    res: Response
+) => {
+    try {
+        const businessId = Number(req.params.businessId);
+
+        if (!businessId || Number.isNaN(businessId)) {
+            return errorResponse(
+                res,
+                "Invalid businessId",
+                HTTP_STATUS.BAD_REQUEST
+            );
+        }
+
+        const overview = await getAdminBusinessDeviceOverviewService(businessId);
+
+        return successResponse(
+            res,
+            overview,
+            "Business devices fetched successfully",
+            HTTP_STATUS.OK
+        );
+    } catch (error: any) {
+        if (error.message === "BUSINESS_NOT_FOUND") {
+            return errorResponse(res, "Business not found", HTTP_STATUS.NOT_FOUND);
+        }
+
         return errorResponse(
             res,
             error.message,

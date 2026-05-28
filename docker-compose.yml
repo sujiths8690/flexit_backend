@@ -22,8 +22,20 @@ services:
       - "4000:3000"
     depends_on:
       - auth
+      - admin-auth
       - content
       - user-activity
+
+  admin-auth:
+    build: ./server/adminAuth
+    restart: unless-stopped
+    ports:
+      - "4005:3005"
+    env_file:
+      - ./server/adminAuth/.env
+    depends_on:
+      db:
+        condition: service_healthy
 
   auth:
     build: ./server/auth

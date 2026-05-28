@@ -14,6 +14,7 @@ interface DeviceInput {
     businessId: number;
     userId: number;
     token?: string;
+    deviceInfo?: Record<string, any>;
 }
 
 interface DeviceConfigInput {
@@ -155,6 +156,77 @@ const normalizeContentModeValue = (value: string) => {
 
 const normalizeDeviceName = (value?: string | null) =>
     typeof value === "string" ? value.trim() : "";
+
+const optionalString = (value: any) =>
+    typeof value === "string" && value.trim().length ? value.trim() : undefined;
+
+const optionalInt = (value: any) => {
+    const numberValue = Number(value);
+    return Number.isInteger(numberValue) ? numberValue : undefined;
+};
+
+const optionalFloat = (value: any) => {
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue : undefined;
+};
+
+const deviceMetadataUpdate = (deviceInfo?: Record<string, any>) => {
+    if (!deviceInfo || typeof deviceInfo !== "object" || Array.isArray(deviceInfo)) {
+        return {};
+    }
+
+    return {
+        ...(optionalString(deviceInfo.manufacturer) && { manufacturer: optionalString(deviceInfo.manufacturer) }),
+        ...(optionalString(deviceInfo.brand) && { brand: optionalString(deviceInfo.brand) }),
+        ...(optionalString(deviceInfo.model) && { model: optionalString(deviceInfo.model) }),
+        ...(optionalString(deviceInfo.product) && { product: optionalString(deviceInfo.product) }),
+        ...(optionalString(deviceInfo.deviceName) && { deviceName: optionalString(deviceInfo.deviceName) }),
+        ...(optionalString(deviceInfo.board) && { board: optionalString(deviceInfo.board) }),
+        ...(optionalString(deviceInfo.hardware) && { hardware: optionalString(deviceInfo.hardware) }),
+        ...(optionalString(deviceInfo.androidVersion) && { androidVersion: optionalString(deviceInfo.androidVersion) }),
+        ...(optionalInt(deviceInfo.sdkInt) !== undefined && { sdkInt: optionalInt(deviceInfo.sdkInt) }),
+        ...(optionalString(deviceInfo.buildId) && { buildId: optionalString(deviceInfo.buildId) }),
+        ...(optionalString(deviceInfo.buildDisplay) && { buildDisplay: optionalString(deviceInfo.buildDisplay) }),
+        ...(optionalString(deviceInfo.fingerprint) && { fingerprint: optionalString(deviceInfo.fingerprint) }),
+        ...(optionalString(deviceInfo.serialNumber) && { serialNumber: optionalString(deviceInfo.serialNumber) }),
+        ...(optionalString(deviceInfo.androidId) && { androidId: optionalString(deviceInfo.androidId) }),
+        ...(optionalString(deviceInfo.macAddress) && { macAddress: optionalString(deviceInfo.macAddress) }),
+        ...(optionalString(deviceInfo.ipAddress) && { ipAddress: optionalString(deviceInfo.ipAddress) }),
+        ...(optionalInt(deviceInfo.screenWidth) !== undefined && { screenWidth: optionalInt(deviceInfo.screenWidth) }),
+        ...(optionalInt(deviceInfo.screenHeight) !== undefined && { screenHeight: optionalInt(deviceInfo.screenHeight) }),
+        ...(optionalFloat(deviceInfo.screenPixelRatio) !== undefined && { screenPixelRatio: optionalFloat(deviceInfo.screenPixelRatio) }),
+        ...(optionalString(deviceInfo.platform) && { platform: optionalString(deviceInfo.platform) }),
+        ...(optionalString(deviceInfo.osVersion) && { osVersion: optionalString(deviceInfo.osVersion) }),
+        ...(optionalString(deviceInfo.appVersion) && { appVersion: optionalString(deviceInfo.appVersion) }),
+        rawDeviceInfo: deviceInfo
+    };
+};
+
+const deviceMetadataResponse = (device: any) => ({
+    manufacturer: device.manufacturer,
+    brand: device.brand,
+    model: device.model,
+    product: device.product,
+    deviceName: device.deviceName,
+    board: device.board,
+    hardware: device.hardware,
+    androidVersion: device.androidVersion,
+    sdkInt: device.sdkInt,
+    buildId: device.buildId,
+    buildDisplay: device.buildDisplay,
+    fingerprint: device.fingerprint,
+    serialNumber: device.serialNumber,
+    androidId: device.androidId,
+    macAddress: device.macAddress,
+    ipAddress: device.ipAddress,
+    screenWidth: device.screenWidth,
+    screenHeight: device.screenHeight,
+    screenPixelRatio: device.screenPixelRatio,
+    platform: device.platform,
+    osVersion: device.osVersion,
+    appVersion: device.appVersion,
+    rawDeviceInfo: device.rawDeviceInfo
+});
 
 const resolveDeviceBool = (
     device: any,
@@ -406,7 +478,8 @@ const registerDeviceService = async ({
     name,
     businessId,
     userId,
-    token
+    token,
+    deviceInfo
 }: DeviceInput) => {
 
     try {
@@ -428,7 +501,8 @@ const registerDeviceService = async ({
             data: {
                 name,
                 businessId,
-                deviceCode
+                deviceCode,
+                ...deviceMetadataUpdate(deviceInfo)
             }
         });
 
@@ -451,7 +525,8 @@ const registerDeviceService = async ({
         return {
             id: device.id,
             name: device.name,
-            deviceCode: device.deviceCode
+            deviceCode: device.deviceCode,
+            ...deviceMetadataResponse(device)
         };
 
     } catch (error: any) {
@@ -468,7 +543,8 @@ const pairDeviceByCodeService = async ({
     name,
     businessId,
     userId,
-    token
+    token,
+    deviceInfo
 }: DeviceInput) => {
 
     try {
@@ -512,14 +588,16 @@ const pairDeviceByCodeService = async ({
             ? await prisma.device.update({
                 where: { id: existingDevice.id },
                 data: {
-                    name: normalizedName || existingDevice.name || `Display ${normalizedCode.slice(0, 4)}`
+                    name: normalizedName || existingDevice.name || `Display ${normalizedCode.slice(0, 4)}`,
+                    ...deviceMetadataUpdate(deviceInfo)
                 }
             })
             : await prisma.device.create({
                 data: {
                     name: normalizedName || `Display ${normalizedCode.slice(0, 4)}`,
                     businessId,
-                    deviceCode: normalizedCode
+                    deviceCode: normalizedCode,
+                    ...deviceMetadataUpdate(deviceInfo)
                 }
             });
 
@@ -565,7 +643,8 @@ const pairDeviceByCodeService = async ({
             ...deviceScheduleSettings(device),
             ...deviceDisplaySettings(device),
             online,
-            createdAt: device.createdAt
+            createdAt: device.createdAt,
+            ...deviceMetadataResponse(device)
         };
 
     } catch (error: any) {
@@ -613,13 +692,115 @@ const listDevicesByBusinessService = async (businessId: number) => {
                 ...deviceScheduleSettings(device),
                 ...deviceDisplaySettings(device),
                 online: Boolean(statuses[normalizedDeviceCode]),
-                createdAt: device.createdAt
+                createdAt: device.createdAt,
+                ...deviceMetadataResponse(device)
             };
         });
 
     } catch (error: any) {
         throw new Error(`ERROR_FETCHING_DEVICES: ${error.message}`);
     }
+};
+
+/* ================================
+   UPDATE DEVICE METADATA BY CODE
+================================ */
+const updateDeviceMetadataByCodeService = async (
+    deviceCode: string,
+    deviceInfo?: Record<string, any>
+) => {
+    const normalizedCode = deviceCode.trim().toUpperCase();
+    const metadata = deviceMetadataUpdate(deviceInfo);
+
+    if (!normalizedCode) {
+        throw new Error("DEVICE_CODE_REQUIRED");
+    }
+
+    if (!Object.keys(metadata).length) {
+        throw new Error("DEVICE_INFO_REQUIRED");
+    }
+
+    const existingDevice = await prisma.device.findUnique({
+        where: { deviceCode: normalizedCode }
+    });
+
+    if (!existingDevice) {
+        throw new Error("DEVICE_NOT_FOUND");
+    }
+
+    const device = await prisma.device.update({
+        where: { id: existingDevice.id },
+        data: metadata
+    });
+
+    return {
+        id: device.id,
+        name: device.name,
+        deviceCode: device.deviceCode,
+        ...deviceMetadataResponse(device)
+    };
+};
+
+/* ================================
+   ADMIN BUSINESS + DISPLAY DEVICES
+================================ */
+const getAdminBusinessDeviceOverviewService = async (businessId: number) => {
+    const business = await prisma.business.findUnique({
+        where: { id: businessId },
+        include: {
+            devices: {
+                where: { isActive: true },
+                orderBy: { createdAt: "desc" }
+            }
+        }
+    });
+
+    if (!business) {
+        throw new Error("BUSINESS_NOT_FOUND");
+    }
+
+    const statuses = await getDeviceRealtimeStatuses(
+        business.devices.map((device) => device.deviceCode)
+    );
+
+    const devices = business.devices.map((device) => {
+        const normalizedDeviceCode = device.deviceCode.trim().toUpperCase();
+
+        return {
+            id: device.id,
+            name: device.name,
+            deviceCode: device.deviceCode,
+            mode: device.displayMode,
+            orientation: (device as any).orientation ?? "normal",
+            menuTheme: (device as any).menuTheme ?? "light",
+            themeColor: (device as any).themeColor ?? "gold",
+            displayContentMode: (device as any).displayContentMode ?? "allCategories",
+            selectedCategoryId: (device as any).selectedCategoryId ?? null,
+            selectedMediaId: (device as any).selectedMediaId ?? null,
+            transitionStyle: (device as any).transitionStyle ?? "fade",
+            transitionSpeedSeconds: (device as any).transitionSpeedSeconds ?? 0.5,
+            autoScrollIntervalSeconds: (device as any).autoScrollIntervalSeconds ?? 8,
+            ...deviceScheduleSettings(device),
+            ...deviceDisplaySettings(device, business),
+            online: Boolean(statuses[normalizedDeviceCode]),
+            createdAt: device.createdAt,
+            ...deviceMetadataResponse(device)
+        };
+    });
+
+    return {
+        business: {
+            id: business.id,
+            name: business.name,
+            mobile: business.mobile,
+            email: business.email,
+            address: business.address,
+            isActive: business.isActive,
+            createdAt: business.createdAt,
+            updatedAt: business.updatedAt
+        },
+        devices
+    };
 };
 
 
@@ -1150,6 +1331,8 @@ export {
     registerDeviceService,
     pairDeviceByCodeService,
     listDevicesByBusinessService,
+    updateDeviceMetadataByCodeService,
+    getAdminBusinessDeviceOverviewService,
     getDeviceConfigByCodeService,
     updateDeviceConfigService,
     deleteDeviceService
