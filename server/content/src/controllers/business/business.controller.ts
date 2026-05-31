@@ -4,7 +4,10 @@ import {
   updateBusinessService,
   getBusinessByIdService,
   disableBusinessService,
-  enableBusinessService
+  enableBusinessService,
+  getAdminRevenueOverviewService,
+  extendBusinessPlanService,
+  setBusinessPlanOfferService
 } from "../../services/business/business.services";
 
 import { successResponse, errorResponse } from "../../utils/response.helper";
@@ -26,7 +29,9 @@ export const createBusinessController = async (req: Request, res: Response) => {
       showLogo,
       showCompanyName,
       showProductImage,
-      showComboItemQuantity
+      showComboItemQuantity,
+      subscriptionPlan,
+      customer
     } = req.body;
 
     const business = await createBusinessService({
@@ -40,7 +45,9 @@ export const createBusinessController = async (req: Request, res: Response) => {
       showLogo,
       showCompanyName,
       showProductImage,
-      showComboItemQuantity
+      showComboItemQuantity,
+      subscriptionPlan,
+      customer
     });
 
     return successResponse(
@@ -185,6 +192,99 @@ export const enableBusinessController = async (req: Request, res: Response) => {
       res,
       error.message,
       HTTP_STATUS.BAD_REQUEST
+    );
+  }
+};
+
+export const extendBusinessPlanController = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const id = Number(req.params.id);
+    const days = Number(req.body.days);
+
+    const business = await extendBusinessPlanService({ id, days });
+
+    return successResponse(
+      res,
+      business,
+      "Business plan extended successfully",
+      HTTP_STATUS.OK
+    );
+  } catch (error: any) {
+    const messages: Record<string, string> = {
+      BUSINESS_NOT_FOUND: "Business not found",
+      INVALID_EXTENSION_DAYS: "Choose between 1 and 30 days",
+    };
+    return errorResponse(
+      res,
+      messages[error.message] || error.message,
+      HTTP_STATUS.BAD_REQUEST
+    );
+  }
+};
+
+export const setBusinessPlanOfferController = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const id = Number(req.params.id);
+    const { planId, planName, originalAmount, offerAmount, validUntil } = req.body;
+
+    const business = await setBusinessPlanOfferService({
+      id,
+      planId: String(planId || ""),
+      planName: String(planName || ""),
+      originalAmount: Number(originalAmount),
+      offerAmount: Number(offerAmount),
+      validUntil: String(validUntil || ""),
+    });
+
+    return successResponse(
+      res,
+      business,
+      "Business plan offer saved successfully",
+      HTTP_STATUS.OK
+    );
+  } catch (error: any) {
+    const messages: Record<string, string> = {
+      BUSINESS_NOT_FOUND: "Business not found",
+      PLAN_REQUIRED: "Choose a plan",
+      INVALID_PLAN_AMOUNT: "Invalid plan amount",
+      INVALID_OFFER_AMOUNT: "Offer amount must be lower than the plan price",
+      INVALID_OFFER_EXPIRY: "Choose a valid future offer end date",
+    };
+    return errorResponse(
+      res,
+      messages[error.message] || error.message,
+      HTTP_STATUS.BAD_REQUEST
+    );
+  }
+};
+
+/* ================================
+   ADMIN REVENUE + TRANSACTIONS
+================================ */
+export const getAdminRevenueOverviewController = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const overview = await getAdminRevenueOverviewService();
+
+    return successResponse(
+      res,
+      overview,
+      "Revenue fetched successfully",
+      HTTP_STATUS.OK
+    );
+  } catch (error: any) {
+    return errorResponse(
+      res,
+      error.message,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
     );
   }
 };

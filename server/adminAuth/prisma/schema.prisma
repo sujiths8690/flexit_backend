@@ -11,6 +11,11 @@ datasource db {
 model AdminUser {
   id           Int       @id @default(autoincrement())
   name         String
+  firstName    String?
+  lastName     String?
+  mobile       String?
+  age          Int?
+  address      String?   @db.Text
   email        String    @unique
   passwordHash String
   role         AdminRole @default(ADMIN)

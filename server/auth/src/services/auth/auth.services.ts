@@ -5,6 +5,31 @@ import prisma from "../../config/prisma";
 import { Role } from "@prisma/client";
 import axios from "axios";
 
+const ADMIN_REALTIME_URL =
+  process.env.ADMIN_REALTIME_URL || "http://realtime:3003/realtime/admin-broadcast";
+
+const notifyAdminDashboard = async (eventType: string, data: any) => {
+  try {
+    await axios.post(
+      ADMIN_REALTIME_URL,
+      {
+        type: "ADMIN_DASHBOARD_UPDATED",
+        data: {
+          source: "auth",
+          eventType,
+          ...data,
+        },
+      },
+      {
+        headers: process.env.REALTIME_INTERNAL_SECRET
+          ? { "x-internal-realtime-secret": process.env.REALTIME_INTERNAL_SECRET }
+          : undefined,
+        timeout: 1000,
+      }
+    );
+  } catch {}
+};
+
 interface LoginResult{
     token: string;
     user:{
@@ -66,6 +91,12 @@ export const registerService = async ({
             businessId: null,
         },
         });
+
+    void notifyAdminDashboard("USER_REGISTERED", {
+      userId: user.id,
+      name: [user.firstName, user.lastName].filter(Boolean).join(" ").trim(),
+      email: user.email,
+    });
 
     const token = jwt.sign(
         {
@@ -170,6 +201,12 @@ export const linkBusinessService = async (
   const updatedUser = await prisma.user.update({
     where: { id: userId },
     data: { businessId },
+  });
+
+  void notifyAdminDashboard("BUSINESS_LINKED", {
+    userId: updatedUser.id,
+    businessId: updatedUser.businessId,
+    email: updatedUser.email,
   });
 
   // 🔥 CREATE NEW TOKEN

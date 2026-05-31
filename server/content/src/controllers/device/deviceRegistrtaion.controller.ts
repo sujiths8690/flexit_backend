@@ -5,6 +5,7 @@ import {
     listDevicesByBusinessService,
     updateDeviceMetadataByCodeService,
     getAdminBusinessDeviceOverviewService,
+    getAdminDeviceOverviewService,
     updateDeviceConfigService,
     deleteDeviceService
 } from "../../services/device/deviceRegistration.service";
@@ -230,6 +231,31 @@ export const getAdminBusinessDeviceOverviewController = async (
             return errorResponse(res, "Business not found", HTTP_STATUS.NOT_FOUND);
         }
 
+        return errorResponse(
+            res,
+            error.message,
+            HTTP_STATUS.INTERNAL_SERVER_ERROR
+        );
+    }
+};
+
+/* ================================
+   ADMIN ALL DISPLAY DEVICES
+================================ */
+export const getAdminDeviceOverviewController = async (
+    req: Request,
+    res: Response
+) => {
+    try {
+        const overview = await getAdminDeviceOverviewService();
+
+        return successResponse(
+            res,
+            overview,
+            "Registered devices fetched successfully",
+            HTTP_STATUS.OK
+        );
+    } catch (error: any) {
         return errorResponse(
             res,
             error.message,

@@ -1,4 +1,5 @@
 import prisma from "../../config/prisma";
+import type { Device } from "@prisma/client";
 import { logActivity } from "../../utils/activityClient";
 import {
     getDeviceRealtimeStatus,
@@ -745,25 +746,46 @@ const updateDeviceMetadataByCodeService = async (
    ADMIN BUSINESS + DISPLAY DEVICES
 ================================ */
 const getAdminBusinessDeviceOverviewService = async (businessId: number) => {
-    const business = await prisma.business.findUnique({
-        where: { id: businessId },
-        include: {
-            devices: {
-                where: { isActive: true },
-                orderBy: { createdAt: "desc" }
+    let business;
+    try {
+        business = await (prisma as any).business.findUnique({
+            where: { id: businessId },
+            include: {
+                devices: {
+                    where: { isActive: true },
+                    orderBy: { createdAt: "desc" }
+                },
+                adminOffers: {
+                    orderBy: { createdAt: "desc" }
+                }
             }
+        });
+    } catch (error: any) {
+        const message = String(error?.message ?? error);
+        if (!message.includes("BusinessAdminOffer") ||
+            !message.toLowerCase().includes("does not exist")) {
+            throw error;
         }
-    });
+        business = await prisma.business.findUnique({
+            where: { id: businessId },
+            include: {
+                devices: {
+                    where: { isActive: true },
+                    orderBy: { createdAt: "desc" }
+                }
+            }
+        });
+    }
 
     if (!business) {
         throw new Error("BUSINESS_NOT_FOUND");
     }
 
     const statuses = await getDeviceRealtimeStatuses(
-        business.devices.map((device) => device.deviceCode)
+        business.devices.map((device: Device) => device.deviceCode)
     );
 
-    const devices = business.devices.map((device) => {
+    const devices = business.devices.map((device: Device) => {
         const normalizedDeviceCode = device.deviceCode.trim().toUpperCase();
 
         return {
@@ -787,6 +809,75 @@ const getAdminBusinessDeviceOverviewService = async (businessId: number) => {
             ...deviceMetadataResponse(device)
         };
     });
+    const now = new Date();
+    const offers: any[] = (((business as any).adminOffers as any[]) ?? []).map((offer) => ({
+        id: offer.id,
+        type: offer.type,
+        planId: offer.planId,
+        planName: offer.planName,
+        originalAmount: offer.originalAmount == null ? null : Number(offer.originalAmount),
+        amount: offer.offerAmount == null ? null : Number(offer.offerAmount),
+        offerAmount: offer.offerAmount == null ? null : Number(offer.offerAmount),
+        currency: offer.currency ?? "INR",
+        extensionDays: offer.extensionDays,
+        previousEndsAt: offer.previousEndsAt,
+        newEndsAt: offer.newEndsAt,
+        validUntil: offer.validUntil,
+        expiresAt: offer.validUntil,
+        createdAt: offer.createdAt
+    }));
+    const extensionFallback = (business as any).subscriptionExtensionDays &&
+        (business as any).subscriptionExtensionNewEndsAt
+        ? {
+            type: "PLAN_EXTENSION",
+            extensionDays: (business as any).subscriptionExtensionDays,
+            previousEndsAt: (business as any).subscriptionExtensionPreviousEndsAt,
+            newEndsAt: (business as any).subscriptionExtensionNewEndsAt,
+            currency: "INR",
+            createdAt: (business as any).subscriptionExtensionCreatedAt,
+        }
+        : null;
+    if (extensionFallback &&
+        !offers.some((offer) =>
+            offer.type === extensionFallback.type &&
+            offer.extensionDays === extensionFallback.extensionDays &&
+            String(offer.newEndsAt ?? "") === String(extensionFallback.newEndsAt ?? "")
+        )) {
+        offers.unshift(extensionFallback);
+    }
+    const activeOffer = offers.find((offer) =>
+        offer.type === "PLAN_OFFER" &&
+        (!offer.validUntil || new Date(offer.validUntil).getTime() >= now.getTime())
+    );
+    const fallbackOffer = (business as any).subscriptionOfferPlanId &&
+        (!(business as any).subscriptionOfferExpiresAt ||
+            new Date((business as any).subscriptionOfferExpiresAt).getTime() >= now.getTime())
+        ? {
+            type: "PLAN_OFFER",
+            planId: (business as any).subscriptionOfferPlanId,
+            planName: (business as any).subscriptionOfferPlanName,
+            originalAmount:
+                (business as any).subscriptionOfferOriginalAmount == null
+                    ? null
+                    : Number((business as any).subscriptionOfferOriginalAmount),
+            amount:
+                (business as any).subscriptionOfferAmount == null
+                    ? null
+                    : Number((business as any).subscriptionOfferAmount),
+            offerAmount:
+                (business as any).subscriptionOfferAmount == null
+                    ? null
+                    : Number((business as any).subscriptionOfferAmount),
+            currency: (business as any).subscriptionOfferCurrency ?? "INR",
+            expiresAt: (business as any).subscriptionOfferExpiresAt,
+            validUntil: (business as any).subscriptionOfferExpiresAt,
+            createdAt: (business as any).subscriptionOfferCreatedAt,
+        }
+        : null;
+
+    const hasSubscriptionData = Boolean((business as any).subscriptionPlanId) ||
+        Boolean(activeOffer ?? fallbackOffer) ||
+        offers.length > 0;
 
     return {
         business: {
@@ -796,10 +887,100 @@ const getAdminBusinessDeviceOverviewService = async (businessId: number) => {
             email: business.email,
             address: business.address,
             isActive: business.isActive,
+            subscriptionPlanId: (business as any).subscriptionPlanId,
+            subscriptionPlanName: (business as any).subscriptionPlanName,
+            subscriptionStatus: (business as any).subscriptionStatus,
+            subscriptionAmount: Number((business as any).subscriptionAmount ?? 0),
+            subscriptionCurrency: (business as any).subscriptionCurrency ?? "INR",
+            subscriptionStartedAt: (business as any).subscriptionStartedAt,
+            subscriptionTrialEndsAt: (business as any).subscriptionTrialEndsAt,
+            subscriptionOfferPlanId: (business as any).subscriptionOfferPlanId,
+            subscriptionOfferPlanName: (business as any).subscriptionOfferPlanName,
+            subscriptionOfferOriginalAmount:
+                (business as any).subscriptionOfferOriginalAmount == null
+                    ? null
+                    : Number((business as any).subscriptionOfferOriginalAmount),
+            subscriptionOfferAmount:
+                (business as any).subscriptionOfferAmount == null
+                    ? null
+                    : Number((business as any).subscriptionOfferAmount),
+            subscriptionOfferCurrency: (business as any).subscriptionOfferCurrency ?? "INR",
+            subscriptionOfferExpiresAt: (business as any).subscriptionOfferExpiresAt,
+            subscriptionOfferCreatedAt: (business as any).subscriptionOfferCreatedAt,
+            subscriptionExtensionDays: (business as any).subscriptionExtensionDays,
+            subscriptionExtensionPreviousEndsAt: (business as any).subscriptionExtensionPreviousEndsAt,
+            subscriptionExtensionNewEndsAt: (business as any).subscriptionExtensionNewEndsAt,
+            subscriptionExtensionCreatedAt: (business as any).subscriptionExtensionCreatedAt,
+            subscriptionPlan: hasSubscriptionData
+                ? {
+                    id: (business as any).subscriptionPlanId,
+                    name: (business as any).subscriptionPlanName,
+                    status: (business as any).subscriptionStatus,
+                    amount: Number((business as any).subscriptionAmount ?? 0),
+                    currency: (business as any).subscriptionCurrency ?? "INR",
+                    startedAt: (business as any).subscriptionStartedAt,
+                    trialEndsAt: (business as any).subscriptionTrialEndsAt,
+                    offer: activeOffer ?? fallbackOffer,
+                    offers,
+                }
+                : null,
             createdAt: business.createdAt,
             updatedAt: business.updatedAt
         },
         devices
+    };
+};
+
+/* ================================
+   ADMIN ALL DISPLAY DEVICES
+================================ */
+const getAdminDeviceOverviewService = async () => {
+    const devices = await prisma.device.findMany({
+        where: { isActive: true },
+        include: { business: true },
+        orderBy: { createdAt: "desc" }
+    });
+
+    const statuses = await getDeviceRealtimeStatuses(
+        devices.map((device) => device.deviceCode)
+    );
+
+    return {
+        devices: devices.map((device) => {
+            const normalizedDeviceCode = device.deviceCode.trim().toUpperCase();
+            const business = device.business;
+
+            return {
+                id: device.id,
+                name: device.name,
+                deviceCode: device.deviceCode,
+                mode: device.displayMode,
+                orientation: (device as any).orientation ?? "normal",
+                menuTheme: (device as any).menuTheme ?? "light",
+                themeColor: (device as any).themeColor ?? "gold",
+                displayContentMode: (device as any).displayContentMode ?? "allCategories",
+                selectedCategoryId: (device as any).selectedCategoryId ?? null,
+                selectedMediaId: (device as any).selectedMediaId ?? null,
+                transitionStyle: (device as any).transitionStyle ?? "fade",
+                transitionSpeedSeconds: (device as any).transitionSpeedSeconds ?? 0.5,
+                autoScrollIntervalSeconds: (device as any).autoScrollIntervalSeconds ?? 8,
+                ...deviceScheduleSettings(device),
+                ...deviceDisplaySettings(device, business),
+                online: Boolean(statuses[normalizedDeviceCode]),
+                createdAt: device.createdAt,
+                business: {
+                    id: business.id,
+                    name: business.name,
+                    mobile: business.mobile,
+                    email: business.email,
+                    address: business.address,
+                    isActive: business.isActive,
+                    createdAt: business.createdAt,
+                    updatedAt: business.updatedAt
+                },
+                ...deviceMetadataResponse(device)
+            };
+        })
     };
 };
 
@@ -1333,6 +1514,7 @@ export {
     listDevicesByBusinessService,
     updateDeviceMetadataByCodeService,
     getAdminBusinessDeviceOverviewService,
+    getAdminDeviceOverviewService,
     getDeviceConfigByCodeService,
     updateDeviceConfigService,
     deleteDeviceService

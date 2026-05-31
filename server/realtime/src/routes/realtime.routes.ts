@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  broadcastToAdmins,
   broadcastToBusiness,
   broadcastToDevice,
   getDeviceConnectionStatuses,
@@ -54,6 +55,32 @@ router.post("/business-broadcast", (req, res) => {
     type,
     data
   });
+
+  res.json({ success: true });
+});
+
+router.post("/admin-broadcast", (req, res) => {
+  const configuredSecret = process.env.REALTIME_INTERNAL_SECRET;
+  const requestSecret = req.header("x-internal-realtime-secret");
+
+  if (configuredSecret && requestSecret !== configuredSecret) {
+    return res.status(401).json({
+      success: false,
+      error: "unauthorized"
+    });
+  }
+
+  const { type, data } = req.body;
+
+  if (!type) {
+    return res.status(400).json({
+      success: false,
+      error: "type is required"
+    });
+  }
+
+  console.log("Admin realtime request:", type);
+  broadcastToAdmins({ type, data });
 
   res.json({ success: true });
 });

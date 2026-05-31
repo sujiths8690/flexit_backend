@@ -4,11 +4,15 @@ import {
   getBusinessByIdController,
   updateBusinessController,
   disableBusinessController,
-  enableBusinessController
+  enableBusinessController,
+  getAdminRevenueOverviewController,
+  extendBusinessPlanController,
+  setBusinessPlanOfferController
 } from "../../controllers/business/business.controller";
 
 // 🔐 (we’ll use this next step)
 import { authenticate } from "../../middleware/auth";
+import { authenticateAdminToken } from "../../middleware/adminAuth";
 
 const router = Router();
 
@@ -18,6 +22,24 @@ const router = Router();
 
 // Create business (initial onboarding)
 router.post("/create", createBusinessController);
+
+router.get(
+  "/admin/revenue/overview",
+  authenticateAdminToken,
+  getAdminRevenueOverviewController
+);
+
+router.patch(
+  "/admin/business/:id/extend-plan",
+  authenticateAdminToken,
+  extendBusinessPlanController
+);
+
+router.patch(
+  "/admin/business/:id/plan-offer",
+  authenticateAdminToken,
+  setBusinessPlanOfferController
+);
 
 // Get business (can be public for now)
 router.get("/:id", getBusinessByIdController);

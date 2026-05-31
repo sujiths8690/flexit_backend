@@ -1,10 +1,28 @@
 import axios from "axios";
 
 const REALTIME_URL = "http://realtime:3003/realtime/business-broadcast";
+const ADMIN_REALTIME_URL = "http://realtime:3003/realtime/admin-broadcast";
 const DEVICE_REALTIME_URL = "http://realtime:3003/realtime/device-broadcast";
 const DEVICE_STATUS_URL = "http://realtime:3003/realtime/device-status";
 const DEVICE_STATUSES_URL = "http://realtime:3003/realtime/device-statuses";
 const REALTIME_TIMEOUT_MS = 1000;
+
+export const sendAdminRealtimeUpdate = async (type: string, data: any) => {
+  try {
+    await axios.post(
+      ADMIN_REALTIME_URL,
+      { type, data },
+      {
+        headers: process.env.REALTIME_INTERNAL_SECRET
+          ? { "x-internal-realtime-secret": process.env.REALTIME_INTERNAL_SECRET }
+          : undefined,
+        timeout: REALTIME_TIMEOUT_MS,
+      }
+    );
+  } catch (error) {
+    console.error("Admin realtime service failed:", error);
+  }
+};
 
 export const sendRealtimeUpdate = async (
   businessId: number,
@@ -13,6 +31,13 @@ export const sendRealtimeUpdate = async (
   token?: string
 ) => {
   try {
+    void sendAdminRealtimeUpdate("ADMIN_DASHBOARD_UPDATED", {
+      source: "content",
+      businessId,
+      eventType: type,
+      data,
+    });
+
     await axios.post(
       REALTIME_URL,
       { businessId, type, data },

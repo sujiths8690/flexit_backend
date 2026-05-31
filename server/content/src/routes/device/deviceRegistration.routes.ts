@@ -5,6 +5,7 @@ import {
   listDevicesController,
   updateDeviceMetadataController,
   getAdminBusinessDeviceOverviewController,
+  getAdminDeviceOverviewController,
   getDeviceConfigController,
   updateDeviceConfigController,
   deleteDeviceController,
@@ -27,6 +28,12 @@ router.get(
 router.post(
   "/:deviceCode/metadata",
   updateDeviceMetadataController
+);
+
+router.get(
+  "/admin/devices/overview",
+  authenticateAdminToken,
+  getAdminDeviceOverviewController
 );
 
 router.get(

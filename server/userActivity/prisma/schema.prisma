@@ -19,3 +19,35 @@ model UserActivity {
 
   createdAt       DateTime @default(now())
 }
+
+model AppError {
+  id              Int      @id @default(autoincrement())
+  errorId         String   @unique
+  source          String
+  errorCode       String
+  errorType       String   @default("backend")
+  severity        String   @default("medium")
+  status          String   @default("open")
+  message         String   @db.Text
+  stackTrace      String?  @db.Text
+  deviceId        String?
+  deviceName      String?
+  ownerId         String?
+  ownerName       String?
+  businessId      Int?
+  businessName    String?
+  customerId      String?
+  appVersion      String?
+  osVersion       String?
+  environment     Json?
+  rawDetails      Json?
+  resolvedAt      DateTime?
+  resolvedBy      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([severity])
+  @@index([status])
+  @@index([createdAt])
+  @@index([businessId])
+}

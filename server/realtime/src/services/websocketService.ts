@@ -4,12 +4,14 @@ import jwt from "jsonwebtoken";
 interface ExtendedWebSocket extends WebSocket {
   businessId?: number;
   userId?: number;
+  adminId?: number;
   deviceCode?: string;
   isAlive?: boolean;
 }
 
 const businessConnections = new Map<number, Set<ExtendedWebSocket>>();
 const deviceConnections = new Map<string, Set<ExtendedWebSocket>>();
+const adminConnections = new Set<ExtendedWebSocket>();
 const latestDeviceMessages = new Map<string, any>();
 const deviceHeartbeats = new Map<string, number>();
 const DEVICE_ONLINE_TTL_MS = 15000;
@@ -49,6 +51,13 @@ const removeConnection = (ws: ExtendedWebSocket) => {
     ws.businessId = undefined;
     console.log("WS Disconnected:", businessId);
   }
+
+  if (ws.adminId !== undefined) {
+    const adminId = ws.adminId;
+    adminConnections.delete(ws);
+    ws.adminId = undefined;
+    console.log("Admin WS Disconnected:", adminId);
+  }
 };
 
 export const initialize = (webSocketServer: WebSocketServer) => {
@@ -85,6 +94,26 @@ export const initialize = (webSocketServer: WebSocketServer) => {
 
         sendLatestDeviceMessage(ws, deviceCode);
       } else {
+        const adminToken = url.searchParams.get("adminToken");
+        if (adminToken) {
+          const decoded: any = jwt.verify(
+            adminToken,
+            process.env.JWT_SECRET as string
+          );
+
+          if (!decoded.adminId || !decoded.role) {
+            console.log("WS Rejected: admin token missing adminId or role");
+            ws.close();
+            return;
+          }
+
+          ws.adminId = decoded.adminId as number;
+          adminConnections.add(ws);
+          console.log("Admin WS Connected:", ws.adminId);
+          ws.send(JSON.stringify({ type: "ADMIN_WS_CONNECTED" }));
+          return;
+        }
+
         const token = url.searchParams.get("token");
 
         if (!token) {
@@ -192,6 +221,16 @@ export const broadcastToBusiness = (businessId: number, message: any) => {
   const messageStr = JSON.stringify(message);
 
   clients.forEach((ws) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(messageStr);
+    }
+  });
+};
+
+export const broadcastToAdmins = (message: any) => {
+  const messageStr = JSON.stringify(message);
+
+  adminConnections.forEach((ws) => {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(messageStr);
     }
