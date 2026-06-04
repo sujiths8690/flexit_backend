@@ -20,6 +20,8 @@ services:
     build: ./server/gateway
     ports:
       - "4000:3000"
+    environment:
+      REQUEST_ANALYTICS_INTERNAL_SECRET: ${REQUEST_ANALYTICS_INTERNAL_SECRET:-flexit-request-analytics-secret}
     depends_on:
       - auth
       - admin-auth
@@ -31,6 +33,9 @@ services:
     restart: unless-stopped
     ports:
       - "4005:3005"
+    environment:
+      REQUEST_ANALYTICS_URL: http://gateway:3000/internal/request-analytics
+      REQUEST_ANALYTICS_INTERNAL_SECRET: ${REQUEST_ANALYTICS_INTERNAL_SECRET:-flexit-request-analytics-secret}
     env_file:
       - ./server/adminAuth/.env
     depends_on:

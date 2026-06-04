@@ -1,5 +1,6 @@
 import prisma from "../../config/prisma";
 import { broadcastBusinessDisplayConfigs } from "../../utils/deviceDisplayRealtime";
+import { sendMobilePush } from "../../utils/mobilePush";
 import { sendAdminRealtimeUpdate, sendRealtimeUpdate } from "../../utils/realtimeClient";
 
 type SubscriptionPlanInput = {
@@ -19,6 +20,53 @@ type PlanCustomerInput = {
   email?: string;
   phone?: string;
 };
+
+const defaultPlanConfigs = [
+  {
+    id: "trial",
+    name: "Trial",
+    summary: "Try Flexit with one TV before choosing a paid tier.",
+    minTvDevices: 1,
+    maxTvDevices: 1,
+    amount: 0,
+    currency: "INR",
+    trialDays: 20,
+    features: ["20 days free", "Connect 1 TV", "All core menu tools"],
+  },
+  {
+    id: "clay",
+    name: "Clay",
+    summary: "Starter plan for a single counter, branch, or display.",
+    minTvDevices: 1,
+    maxTvDevices: 1,
+    amount: 999,
+    currency: "INR",
+    trialDays: null,
+    features: ["Connect 1 TV", "Menu and media controls", "Business display settings"],
+  },
+  {
+    id: "metal",
+    name: "Metal",
+    summary: "For growing shops with multiple screens.",
+    minTvDevices: 2,
+    maxTvDevices: 4,
+    amount: 2499,
+    currency: "INR",
+    trialDays: null,
+    features: ["Connect 2-4 TVs", "Multi-screen management", "Recommended for busy outlets"],
+  },
+  {
+    id: "steel",
+    name: "Steel",
+    summary: "For larger businesses running several menu boards.",
+    minTvDevices: 4,
+    maxTvDevices: 8,
+    amount: 4999,
+    currency: "INR",
+    trialDays: null,
+    features: ["Connect 4-8 TVs", "Full display controls", "Built for multi-zone menus"],
+  },
+];
 
 const planAmount = (value: any) => {
   const amount = Number(value);
@@ -58,6 +106,342 @@ const serializePlanTransaction = (transaction: any) => ({
   updatedAt: transaction.updatedAt,
   rawDetails: transaction.rawDetails
 });
+
+const serializePlanConfig = (plan: any, now = new Date()) => {
+  const discountEndsAt = plan.discountEndsAt ?? null;
+  const discountActive =
+    plan.discountName &&
+    plan.discountAmount != null &&
+    (!discountEndsAt || new Date(discountEndsAt).getTime() >= now.getTime());
+  return {
+    id: plan.id,
+    name: plan.name,
+    summary: plan.summary,
+    minTvDevices: plan.minTvDevices,
+    maxTvDevices: plan.maxTvDevices,
+    amount: Number(plan.amount ?? 0),
+    currency: plan.currency ?? "INR",
+    trialDays: plan.trialDays,
+    features: Array.isArray(plan.features) ? plan.features : [],
+    discountName: discountActive ? plan.discountName : null,
+    discountAmount: discountActive ? Number(plan.discountAmount) : null,
+    discountEndsAt: discountActive ? discountEndsAt : null,
+    updatedAt: plan.updatedAt,
+  };
+};
+
+const serializeMobileNotification = (notification: any) => ({
+  id: notification.id,
+  target: notification.target ?? "BUSINESS",
+  businessId: notification.businessId,
+  businessName: notification.business?.name ?? null,
+  title: notification.title,
+  message: notification.message,
+  category: notification.category ?? "GENERAL",
+  meta: notification.meta ?? {},
+  sentAt: notification.sentAt,
+});
+
+const activeBusinessIds = async () => {
+  const businesses = await prisma.business.findMany({
+    where: { isActive: true },
+    select: { id: true },
+  });
+  return businesses.map((business) => business.id);
+};
+
+const mobilePushTokensForBusinesses = async (businessIds: number[]) => {
+  if (businessIds.length === 0) return [];
+  const tokens = await (prisma as any).mobilePushToken.findMany({
+    where: {
+      businessId: { in: businessIds },
+      isActive: true,
+      app: "tex_flutter_app",
+    },
+    select: { token: true },
+  });
+  return tokens.map((item: any) => item.token).filter(Boolean);
+};
+
+const deactivatePushTokens = async (tokens: string[]) => {
+  if (tokens.length === 0) return;
+  await (prisma as any).mobilePushToken.updateMany({
+    where: { token: { in: tokens } },
+    data: { isActive: false },
+  });
+};
+
+const broadcastMobileNotification = async (notification: any) => {
+  const payload = serializeMobileNotification(notification);
+  const ids =
+    notification.target === "ALL"
+      ? await activeBusinessIds()
+      : notification.businessId
+        ? [notification.businessId]
+        : [];
+
+  for (const businessId of ids) {
+    void sendRealtimeUpdate(businessId, "MOBILE_NOTIFICATION", payload);
+  }
+  void (async () => {
+    const tokens = await mobilePushTokensForBusinesses(ids);
+    const result = await sendMobilePush(tokens, {
+      title: payload.title,
+      message: payload.message,
+      category: payload.category,
+      notificationId: payload.id,
+      data: payload,
+    });
+    await deactivatePushTokens(result.failedTokens);
+  })();
+  void sendAdminRealtimeUpdate("ADMIN_DASHBOARD_UPDATED", {
+    source: "content",
+    eventType: "MOBILE_NOTIFICATION_SENT",
+    notificationId: notification.id,
+  });
+};
+
+const createStoredMobileNotification = async ({
+  target = "BUSINESS",
+  businessId,
+  title,
+  message,
+  category = "GENERAL",
+  meta = {},
+}: {
+  target?: "ALL" | "BUSINESS";
+  businessId?: number;
+  title: string;
+  message: string;
+  category?: string;
+  meta?: any;
+}) => {
+  const notification = await (prisma as any).mobileNotification.create({
+    data: {
+      target,
+      businessId: target === "BUSINESS" ? businessId : null,
+      title,
+      message,
+      category,
+      meta,
+    },
+    include: { business: true },
+  });
+  void broadcastMobileNotification(notification);
+  return notification;
+};
+
+export const registerMobilePushTokenService = async ({
+  businessId,
+  userId,
+  token,
+  platform,
+  app = "tex_flutter_app",
+}: {
+  businessId: number;
+  userId?: number;
+  token: string;
+  platform?: string;
+  app?: string;
+}) => {
+  const cleanToken = token.trim();
+  if (!cleanToken) throw new Error("PUSH_TOKEN_REQUIRED");
+
+  return (prisma as any).mobilePushToken.upsert({
+    where: { token: cleanToken },
+    update: {
+      businessId,
+      userId,
+      platform: platform || "android",
+      app,
+      isActive: true,
+      lastSeenAt: new Date(),
+    },
+    create: {
+      businessId,
+      userId,
+      token: cleanToken,
+      platform: platform || "android",
+      app,
+      isActive: true,
+      lastSeenAt: new Date(),
+    },
+  });
+};
+
+const ensurePlanConfigs = async () => {
+  for (const plan of defaultPlanConfigs) {
+    await (prisma as any).subscriptionPlanConfig.upsert({
+      where: { id: plan.id },
+      update: {},
+      create: plan,
+    });
+  }
+};
+
+const broadcastPlanConfigUpdate = async () => {
+  void sendAdminRealtimeUpdate("ADMIN_DASHBOARD_UPDATED", {
+    source: "content",
+    eventType: "SUBSCRIPTION_PLANS_UPDATED",
+  });
+  const businesses = await prisma.business.findMany({
+    where: { isActive: true },
+    select: { id: true },
+  });
+  for (const business of businesses) {
+    void sendRealtimeUpdate(business.id, "SUBSCRIPTION_PLANS_UPDATED", {
+      businessId: business.id,
+    });
+  }
+};
+
+export const getSubscriptionPlanConfigsService = async () => {
+  await ensurePlanConfigs();
+  const plans = await (prisma as any).subscriptionPlanConfig.findMany();
+  const order = new Map(defaultPlanConfigs.map((plan, index) => [plan.id, index]));
+  return plans
+    .map((plan: any) => serializePlanConfig(plan))
+    .sort((a: any, b: any) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99));
+};
+
+export const updateSubscriptionPlanPricesService = async (
+  prices: Record<string, number>
+) => {
+  await ensurePlanConfigs();
+  const editablePlanIds = ["clay", "metal", "steel"];
+  for (const id of editablePlanIds) {
+    const amount = Number(prices[id]);
+    if (!Number.isFinite(amount) || amount < 0) {
+      throw new Error("INVALID_PLAN_PRICE");
+    }
+    await (prisma as any).subscriptionPlanConfig.update({
+      where: { id },
+      data: { amount },
+    });
+  }
+  await broadcastPlanConfigUpdate();
+  return getSubscriptionPlanConfigsService();
+};
+
+export const getMobileNotificationsService = async () => {
+  const notifications = await (prisma as any).mobileNotification.findMany({
+    where: { deletedAt: null },
+    include: { business: true },
+    orderBy: { sentAt: "desc" },
+  });
+  return notifications.map(serializeMobileNotification);
+};
+
+export const createMobileNotificationService = async ({
+  title,
+  message,
+}: {
+  title: string;
+  message: string;
+}) => {
+  const cleanMessage = message.trim();
+  if (!cleanMessage) throw new Error("NOTIFICATION_MESSAGE_REQUIRED");
+  const notification = await createStoredMobileNotification({
+    target: "ALL",
+    title: title.trim() || "teX notification",
+    message: cleanMessage,
+    category: "MANUAL",
+  });
+  return serializeMobileNotification(notification);
+};
+
+export const resendMobileNotificationService = async (id: number) => {
+  const notification = await (prisma as any).mobileNotification.findFirst({
+    where: { id, deletedAt: null },
+    include: { business: true },
+  });
+  if (!notification) throw new Error("NOTIFICATION_NOT_FOUND");
+
+  await (prisma as any).mobileNotification.update({
+    where: { id },
+    data: { sentAt: new Date() },
+  });
+  const updated = await (prisma as any).mobileNotification.findUnique({
+    where: { id },
+    include: { business: true },
+  });
+  void broadcastMobileNotification(updated);
+  return serializeMobileNotification(updated);
+};
+
+export const deleteMobileNotificationService = async (id: number) => {
+  const notification = await (prisma as any).mobileNotification.findFirst({
+    where: { id, deletedAt: null },
+  });
+  if (!notification) throw new Error("NOTIFICATION_NOT_FOUND");
+  await (prisma as any).mobileNotification.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
+};
+
+export const getBusinessMobileNotificationsService = async (
+  businessId: number
+) => {
+  const notifications = await (prisma as any).mobileNotification.findMany({
+    where: {
+      deletedAt: null,
+      OR: [{ target: "ALL" }, { businessId }],
+    },
+    orderBy: { sentAt: "desc" },
+  });
+  return notifications.map(serializeMobileNotification);
+};
+
+export const updateSubscriptionPlanDiscountService = async ({
+  name,
+  validUntil,
+  prices,
+}: {
+  name: string;
+  validUntil: string;
+  prices: Record<string, number>;
+}) => {
+  await ensurePlanConfigs();
+  const discountName = name.trim();
+  const endsAt = optionalDate(validUntil);
+  if (!discountName) throw new Error("DISCOUNT_NAME_REQUIRED");
+  if (!endsAt || endsAt.getTime() < Date.now()) {
+    throw new Error("INVALID_DISCOUNT_DATE");
+  }
+  const editablePlanIds = ["clay", "metal", "steel"];
+  for (const id of editablePlanIds) {
+    const amount = Number(prices[id]);
+    const plan = await (prisma as any).subscriptionPlanConfig.findUnique({
+      where: { id },
+    });
+    if (!Number.isFinite(amount) || amount < 0) {
+      throw new Error("INVALID_DISCOUNT_PRICE");
+    }
+    if (plan && amount >= Number(plan.amount ?? 0)) {
+      throw new Error("DISCOUNT_MUST_BE_LOWER");
+    }
+    await (prisma as any).subscriptionPlanConfig.update({
+      where: { id },
+      data: {
+        discountName,
+        discountAmount: amount,
+        discountEndsAt: endsAt,
+      },
+    });
+  }
+  await broadcastPlanConfigUpdate();
+  void createStoredMobileNotification({
+    target: "ALL",
+    title: discountName,
+    message: `${discountName} is live on all paid plans until ${endsAt.toLocaleDateString(
+      "en-IN"
+    )}. Open plans to check your discounted price.`,
+    category: "PLAN_DISCOUNT",
+    meta: { validUntil: endsAt, prices },
+  });
+  return getSubscriptionPlanConfigsService();
+};
 
 const serializeAdminOffer = (offer: any) => ({
   id: offer.id,
@@ -455,6 +839,16 @@ export const extendBusinessPlanService = async ({
     extensionDays: days,
     planEndsAt: nextEnd,
   });
+  void createStoredMobileNotification({
+    target: "BUSINESS",
+    businessId: id,
+    title: "Plan extended",
+    message: `Your ${
+      (business as any).subscriptionPlanName || "Flexit"
+    } plan has been extended by ${days} day${days === 1 ? "" : "s"}.`,
+    category: "PLAN_EXTENSION",
+    meta: { extensionDays: days, planEndsAt: nextEnd },
+  });
 
   return serializeBusiness(updated);
 };
@@ -533,6 +927,22 @@ export const setBusinessPlanOfferService = async ({
     originalAmount,
     offerAmount,
     validUntil: offerValidUntil,
+  });
+  void createStoredMobileNotification({
+    target: "BUSINESS",
+    businessId: id,
+    title: `${normalizedPlanName} offer`,
+    message: `Special ${normalizedPlanName} plan offer: ₹${offerAmount} instead of ₹${originalAmount}. Valid until ${offerValidUntil.toLocaleDateString(
+      "en-IN"
+    )}.`,
+    category: "PLAN_OFFER",
+    meta: {
+      planId: normalizedPlanId,
+      planName: normalizedPlanName,
+      originalAmount,
+      offerAmount,
+      validUntil: offerValidUntil,
+    },
   });
 
   return serializeBusiness(updated);

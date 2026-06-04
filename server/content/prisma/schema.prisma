@@ -54,9 +54,50 @@ model Business {
   media             Media[]
   planTransactions  PlanTransaction[]
   adminOffers       BusinessAdminOffer[]
+  mobileNotifications MobileNotification[]
+  mobilePushTokens  MobilePushToken[]
 
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
+}
+
+model MobileNotification {
+  id          Int       @id @default(autoincrement())
+  target      String    @default("BUSINESS")
+  title       String    @db.VarChar(120)
+  message     String    @db.Text
+  category    String    @default("GENERAL")
+  meta        Json?
+  sentAt      DateTime  @default(now())
+  deletedAt   DateTime?
+
+  businessId  Int?
+  business    Business? @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+  @@index([target])
+  @@index([sentAt])
+  @@index([deletedAt])
+}
+
+model MobilePushToken {
+  id          Int      @id @default(autoincrement())
+  token       String   @unique @db.VarChar(512)
+  platform    String   @default("android")
+  app         String   @default("tex_flutter_app")
+  isActive    Boolean  @default(true)
+  lastSeenAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  businessId  Int
+  business    Business @relation(fields: [businessId], references: [id])
+  userId      Int?
+
+  @@index([businessId])
+  @@index([userId])
+  @@index([isActive])
+  @@index([app])
 }
 
 model BusinessAdminOffer {
@@ -79,6 +120,22 @@ model BusinessAdminOffer {
   @@index([businessId])
   @@index([type])
   @@index([validUntil])
+}
+
+model SubscriptionPlanConfig {
+  id             String   @id
+  name           String
+  summary        String   @db.Text
+  minTvDevices   Int
+  maxTvDevices   Int
+  amount         Decimal  @default(0.00)
+  currency       String   @default("INR")
+  trialDays      Int?
+  features       Json?
+  discountName   String?
+  discountAmount Decimal?
+  discountEndsAt DateTime?
+  updatedAt      DateTime @updatedAt
 }
 
 model PlanTransaction {

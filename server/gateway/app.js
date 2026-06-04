@@ -1,6 +1,7 @@
 const express= require("express");
 const cors = require("cors");
 const { createProxyMiddleware } = require("http-proxy-middleware");
+const { getRequestAnalytics, recordRequest } = require("./requestAnalytics");
 
 const app=express();
 const authTarget = process.env.AUTH_SERVICE_URL || "http://auth:3001";
@@ -10,8 +11,23 @@ const contentTarget = process.env.CONTENT_SERVICE_URL || "http://content:3002/ap
 const realtimeTarget = process.env.REALTIME_SERVICE_URL || "http://realtime:3003";
 const userActivityTarget =
   process.env.USER_ACTIVITY_SERVICE_URL || "http://user-activity:3004";
+const requestAnalyticsSecret =
+  process.env.REQUEST_ANALYTICS_INTERNAL_SECRET || "flexit-request-analytics-secret";
 
 app.use(cors());
+
+app.use((req, res, next) => {
+  res.on("finish", () => recordRequest(req, res.statusCode));
+  next();
+});
+
+app.get("/internal/request-analytics", (req, res) => {
+  if (req.header("x-request-analytics-secret") !== requestAnalyticsSecret) {
+    return res.status(401).json({ success: false, error: "unauthorized" });
+  }
+
+  return res.json({ success: true, data: getRequestAnalytics() });
+});
 
 app.get(/^\/api\/content\/device\/[^/]+\/config$/, (req, res) => {
   res.status(409).json({

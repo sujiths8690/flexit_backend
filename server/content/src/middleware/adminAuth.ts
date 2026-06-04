@@ -32,8 +32,20 @@ export const authenticateAdminToken = (
       return res.status(401).json({ success: false, error: "Invalid admin token" });
     }
 
+    (req as any).admin = decoded;
     next();
   } catch {
     return res.status(401).json({ success: false, error: "Invalid or expired token" });
   }
+};
+
+export const requireSuperAdminToken = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  if ((req as any).admin?.role !== "SUPERADMIN") {
+    return res.status(403).json({ success: false, error: "Superadmin access required" });
+  }
+  next();
 };

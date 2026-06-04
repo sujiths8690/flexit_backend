@@ -11,12 +11,18 @@ import {
   unblock,
   update,
 } from "../controllers/adminAuth.controller";
+import { requestAnalytics } from "../controllers/requestAnalytics.controller";
 import { authenticateAdmin, requireSuperAdmin } from "../middleware/auth";
 
 const router = Router();
 
 router.post("/login", login);
 router.get("/me", authenticateAdmin, me);
+router.get(
+  "/request-analytics",
+  authenticateAdmin,
+  requestAnalytics
+);
 router.get("/admins", authenticateAdmin, requireSuperAdmin, index);
 router.post("/admins", authenticateAdmin, requireSuperAdmin, store);
 router.get("/admins/:id", authenticateAdmin, requireSuperAdmin, show);
