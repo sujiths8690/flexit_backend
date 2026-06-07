@@ -13,10 +13,13 @@ import {
   updateSubscriptionPlanDiscountService,
   createMobileNotificationService,
   deleteMobileNotificationService,
+  createRazorpayPlanOrderService,
+  getBusinessPlanTransactionsService,
   getBusinessMobileNotificationsService,
   getMobileNotificationsService,
   registerMobilePushTokenService,
-  resendMobileNotificationService
+  resendMobileNotificationService,
+  verifyRazorpayPlanPaymentService
 } from "../../services/business/business.services";
 
 import { successResponse, errorResponse } from "../../utils/response.helper";
@@ -471,6 +474,93 @@ export const registerMobilePushTokenController = async (
       messages[error.message] || error.message,
       HTTP_STATUS.BAD_REQUEST
     );
+  }
+};
+
+export const createRazorpayPlanOrderController = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const order = await createRazorpayPlanOrderService({
+      businessId: req.user!.businessId,
+      userId: req.user!.userId,
+      planId: String(req.body?.planId ?? ""),
+    });
+
+    return successResponse(
+      res,
+      order,
+      "Payment order created successfully",
+      HTTP_STATUS.CREATED
+    );
+  } catch (error: any) {
+    const messages: Record<string, string> = {
+      BUSINESS_NOT_FOUND: "Business not found",
+      PLAN_NOT_FOUND: "Choose a valid plan",
+      PLAN_NOT_PAYABLE: "This plan does not require payment",
+      RAZORPAY_NOT_CONFIGURED: "Payment gateway is not configured",
+    };
+    return errorResponse(
+      res,
+      messages[error.message] || error.message,
+      HTTP_STATUS.BAD_REQUEST
+    );
+  }
+};
+
+export const verifyRazorpayPlanPaymentController = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const result = await verifyRazorpayPlanPaymentService({
+      businessId: req.user!.businessId,
+      userId: req.user!.userId,
+      planId: String(req.body?.planId ?? ""),
+      razorpayOrderId: String(req.body?.razorpayOrderId ?? ""),
+      razorpayPaymentId: String(req.body?.razorpayPaymentId ?? ""),
+      razorpaySignature: String(req.body?.razorpaySignature ?? ""),
+    });
+
+    return successResponse(
+      res,
+      result,
+      "Payment verified successfully",
+      HTTP_STATUS.OK
+    );
+  } catch (error: any) {
+    const messages: Record<string, string> = {
+      BUSINESS_NOT_FOUND: "Business not found",
+      PLAN_NOT_FOUND: "Choose a valid plan",
+      INVALID_RAZORPAY_SIGNATURE: "Payment verification failed",
+      RAZORPAY_PAYMENT_NOT_CAPTURED: "Payment was not captured",
+      RAZORPAY_NOT_CONFIGURED: "Payment gateway is not configured",
+    };
+    return errorResponse(
+      res,
+      messages[error.message] || error.message,
+      HTTP_STATUS.BAD_REQUEST
+    );
+  }
+};
+
+export const getMyPlanTransactionsController = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const transactions = await getBusinessPlanTransactionsService(
+      req.user!.businessId
+    );
+    return successResponse(
+      res,
+      { transactions },
+      "Transactions fetched successfully",
+      HTTP_STATUS.OK
+    );
+  } catch (error: any) {
+    return errorResponse(res, error.message, HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 };
 

@@ -1,4 +1,6 @@
 import prisma from "../../config/prisma";
+import crypto from "crypto";
+import Razorpay from "razorpay";
 import { broadcastBusinessDisplayConfigs } from "../../utils/deviceDisplayRealtime";
 import { sendMobilePush } from "../../utils/mobilePush";
 import { sendAdminRealtimeUpdate, sendRealtimeUpdate } from "../../utils/realtimeClient";
@@ -19,6 +21,18 @@ type PlanCustomerInput = {
   name?: string;
   email?: string;
   phone?: string;
+};
+
+type RazorpayOrderInput = {
+  businessId: number;
+  userId?: number;
+  planId: string;
+};
+
+type RazorpayVerifyInput = RazorpayOrderInput & {
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string;
 };
 
 const defaultPlanConfigs = [
@@ -81,6 +95,40 @@ const optionalDate = (value?: string) => {
 
 const transactionCode = (prefix: string, businessId: number) =>
   `${prefix}-${businessId}-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+
+const razorpayClient = () => {
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  if (!keyId || !keySecret) throw new Error("RAZORPAY_NOT_CONFIGURED");
+  return {
+    keyId,
+    client: new Razorpay({ key_id: keyId, key_secret: keySecret }),
+  };
+};
+
+const amountToPaise = (amount: number) => Math.round(amount * 100);
+
+const verifyRazorpaySignature = ({
+  orderId,
+  paymentId,
+  signature,
+}: {
+  orderId: string;
+  paymentId: string;
+  signature: string;
+}) => {
+  const secret = process.env.RAZORPAY_KEY_SECRET;
+  if (!secret) throw new Error("RAZORPAY_NOT_CONFIGURED");
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(`${orderId}|${paymentId}`)
+    .digest("hex");
+  if (expected.length !== signature.length) return false;
+  return crypto.timingSafeEqual(
+    Buffer.from(expected),
+    Buffer.from(signature)
+  );
+};
 
 const serializePlanTransaction = (transaction: any) => ({
   id: transaction.id,
@@ -302,6 +350,48 @@ export const getSubscriptionPlanConfigsService = async () => {
   return plans
     .map((plan: any) => serializePlanConfig(plan))
     .sort((a: any, b: any) => (order.get(a.id) ?? 99) - (order.get(b.id) ?? 99));
+};
+
+const resolvePayablePlan = async (business: any, planId: string) => {
+  const normalizedPlanId = planId.trim().toLowerCase();
+  const plans = await getSubscriptionPlanConfigsService();
+  const plan = plans.find((item: any) => item.id === normalizedPlanId);
+  if (!plan) throw new Error("PLAN_NOT_FOUND");
+  if (Number(plan.amount ?? 0) <= 0) throw new Error("PLAN_NOT_PAYABLE");
+
+  const activeStoredOffer = ((business.adminOffers as any[]) ?? []).find(
+    (offer) =>
+      offer.type === "PLAN_OFFER" &&
+      offer.planId === normalizedPlanId &&
+      isOfferActive(offer)
+  );
+  const fallbackOffer =
+    !activeStoredOffer &&
+    business.subscriptionOfferPlanId === normalizedPlanId
+      ? fallbackActiveOffer(business)
+      : null;
+  const offerAmount =
+    activeStoredOffer?.offerAmount == null
+      ? fallbackOffer?.amount
+      : Number(activeStoredOffer.offerAmount);
+  const discountAmount =
+    plan.discountAmount != null ? Number(plan.discountAmount) : null;
+  const candidates = [
+    Number(plan.amount ?? 0),
+    ...(discountAmount != null ? [discountAmount] : []),
+    ...(offerAmount != null ? [Number(offerAmount)] : []),
+  ].filter((amount) => Number.isFinite(amount) && amount >= 0);
+  const amount = Math.min(...candidates);
+
+  return {
+    id: plan.id,
+    name: plan.name,
+    amount,
+    currency: plan.currency ?? "INR",
+    catalogAmount: Number(plan.amount ?? 0),
+    appliedOffer: offerAmount != null && amount === Number(offerAmount),
+    appliedDiscount: discountAmount != null && amount === discountAmount,
+  };
 };
 
 export const updateSubscriptionPlanPricesService = async (
@@ -946,6 +1036,176 @@ export const setBusinessPlanOfferService = async ({
   });
 
   return serializeBusiness(updated);
+};
+
+export const createRazorpayPlanOrderService = async ({
+  businessId,
+  userId,
+  planId,
+}: RazorpayOrderInput) => {
+  const business = await findBusinessWithOptionalAdminOffers(businessId);
+  if (!business) throw new Error("BUSINESS_NOT_FOUND");
+
+  const plan = await resolvePayablePlan(business, planId);
+  const { keyId, client } = razorpayClient();
+  const receipt = transactionCode("RZP", businessId).slice(0, 40);
+  const order = await client.orders.create({
+    amount: amountToPaise(plan.amount),
+    currency: plan.currency,
+    receipt,
+    notes: {
+      businessId: String(businessId),
+      userId: userId == null ? "" : String(userId),
+      planId: plan.id,
+      planName: plan.name,
+    },
+  });
+
+  return {
+    keyId,
+    orderId: order.id,
+    amount: plan.amount,
+    amountPaise: amountToPaise(plan.amount),
+    currency: plan.currency,
+    receipt,
+    plan,
+    business: {
+      id: business.id,
+      name: business.name,
+      email: business.email,
+      mobile: business.mobile,
+    },
+  };
+};
+
+export const verifyRazorpayPlanPaymentService = async ({
+  businessId,
+  userId,
+  planId,
+  razorpayOrderId,
+  razorpayPaymentId,
+  razorpaySignature,
+}: RazorpayVerifyInput) => {
+  const business = await findBusinessWithOptionalAdminOffers(businessId);
+  if (!business) throw new Error("BUSINESS_NOT_FOUND");
+  const plan = await resolvePayablePlan(business, planId);
+
+  const signatureValid = verifyRazorpaySignature({
+    orderId: razorpayOrderId,
+    paymentId: razorpayPaymentId,
+    signature: razorpaySignature,
+  });
+  if (!signatureValid) throw new Error("INVALID_RAZORPAY_SIGNATURE");
+
+  const { client } = razorpayClient();
+  const payment = await client.payments.fetch(razorpayPaymentId);
+  if (
+    String(payment.order_id) !== razorpayOrderId ||
+    Number(payment.amount) !== amountToPaise(plan.amount) ||
+    String(payment.status).toLowerCase() !== "captured"
+  ) {
+    throw new Error("RAZORPAY_PAYMENT_NOT_CAPTURED");
+  }
+
+  const existing = await (prisma as any).planTransaction.findUnique({
+    where: { transactionId: razorpayPaymentId },
+    include: { business: true },
+  });
+  if (existing) {
+    return {
+      business: serializeBusiness(business),
+      transaction: serializePlanTransaction(existing),
+    };
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const savedBusiness = await tx.business.update({
+      where: { id: businessId },
+      data: {
+        subscriptionPlanId: plan.id,
+        subscriptionPlanName: plan.name,
+        subscriptionStatus: "active",
+        subscriptionAmount: plan.amount,
+        subscriptionCurrency: plan.currency,
+        subscriptionStartedAt: new Date(),
+        subscriptionTrialEndsAt: null,
+        subscriptionOfferPlanId: null,
+        subscriptionOfferPlanName: null,
+        subscriptionOfferOriginalAmount: null,
+        subscriptionOfferAmount: null,
+        subscriptionOfferExpiresAt: null,
+        subscriptionOfferCreatedAt: null,
+      } as any,
+    });
+    const transaction = await (tx as any).planTransaction.create({
+      data: {
+        transactionId: razorpayPaymentId,
+        invoiceId: razorpayOrderId,
+        amount: plan.amount,
+        currency: plan.currency,
+        status: "success",
+        method: "razorpay",
+        planId: plan.id,
+        planName: plan.name,
+        description: `${plan.name} plan payment via Razorpay`,
+        customerId: userId,
+        customerName: business.name,
+        customerEmail: business.email,
+        customerPhone: business.mobile,
+        businessId,
+        rawDetails: {
+          razorpayOrderId,
+          razorpayPaymentId,
+          payment,
+          plan,
+        },
+      },
+      include: { business: true },
+    });
+    return { business: savedBusiness, transaction };
+  });
+
+  void broadcastBusinessDisplayConfigs(businessId);
+  void sendAdminRealtimeUpdate("ADMIN_DASHBOARD_UPDATED", {
+    source: "content",
+    eventType: "BUSINESS_PLAN_PAYMENT_SUCCESS",
+    businessId,
+    planName: plan.name,
+    amount: plan.amount,
+  });
+  void sendRealtimeUpdate(businessId, "BUSINESS_PLAN_PAYMENT_SUCCESS", {
+    businessId,
+    planId: plan.id,
+    planName: plan.name,
+    amount: plan.amount,
+  });
+  void createStoredMobileNotification({
+    target: "BUSINESS",
+    businessId,
+    title: "Payment received",
+    message: `Your ${plan.name} plan payment of INR ${plan.amount} was successful.`,
+    category: "PLAN_PAYMENT",
+    meta: {
+      planId: plan.id,
+      planName: plan.name,
+      amount: plan.amount,
+      transactionId: razorpayPaymentId,
+    },
+  });
+
+  return {
+    business: serializeBusiness(updated.business),
+    transaction: serializePlanTransaction(updated.transaction),
+  };
+};
+
+export const getBusinessPlanTransactionsService = async (businessId: number) => {
+  const transactions = await (prisma as any).planTransaction.findMany({
+    where: { businessId },
+    include: { business: true },
+    orderBy: { createdAt: "desc" },
+  });
+  return transactions.map(serializePlanTransaction);
 };
 
 export const disableBusinessService = async (id: number) => {

@@ -12,11 +12,14 @@ import {
   updateSubscriptionPlanPricesController,
   updateSubscriptionPlanDiscountController,
   createMobileNotificationController,
+  createRazorpayPlanOrderController,
   deleteMobileNotificationController,
   getMobileNotificationsController,
+  getMyPlanTransactionsController,
   getMyMobileNotificationsController,
   registerMobilePushTokenController,
-  resendMobileNotificationController
+  resendMobileNotificationController,
+  verifyRazorpayPlanPaymentController
 } from "../../controllers/business/business.controller";
 
 // 🔐 (we’ll use this next step)
@@ -103,6 +106,24 @@ router.post(
   "/notifications/device-token",
   authenticate,
   registerMobilePushTokenController
+);
+
+router.get(
+  "/payments/transactions",
+  authenticate,
+  getMyPlanTransactionsController
+);
+
+router.post(
+  "/payments/razorpay/order",
+  authenticate,
+  createRazorpayPlanOrderController
+);
+
+router.post(
+  "/payments/razorpay/verify",
+  authenticate,
+  verifyRazorpayPlanPaymentController
 );
 
 // Get business (can be public for now)
