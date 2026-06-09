@@ -328,9 +328,11 @@ const ensurePlanConfigs = async () => {
 };
 
 const broadcastPlanConfigUpdate = async () => {
+  const plans = await getSubscriptionPlanConfigsService();
   void sendAdminRealtimeUpdate("ADMIN_DASHBOARD_UPDATED", {
     source: "content",
     eventType: "SUBSCRIPTION_PLANS_UPDATED",
+    plans,
   });
   const businesses = await prisma.business.findMany({
     where: { isActive: true },
@@ -339,8 +341,10 @@ const broadcastPlanConfigUpdate = async () => {
   for (const business of businesses) {
     void sendRealtimeUpdate(business.id, "SUBSCRIPTION_PLANS_UPDATED", {
       businessId: business.id,
+      plans,
     });
   }
+  return plans;
 };
 
 export const getSubscriptionPlanConfigsService = async () => {
@@ -409,8 +413,7 @@ export const updateSubscriptionPlanPricesService = async (
       data: { amount },
     });
   }
-  await broadcastPlanConfigUpdate();
-  return getSubscriptionPlanConfigsService();
+  return broadcastPlanConfigUpdate();
 };
 
 export const getMobileNotificationsService = async () => {
@@ -520,7 +523,7 @@ export const updateSubscriptionPlanDiscountService = async ({
       },
     });
   }
-  await broadcastPlanConfigUpdate();
+  const plans = await broadcastPlanConfigUpdate();
   void createStoredMobileNotification({
     target: "ALL",
     title: discountName,
@@ -528,9 +531,9 @@ export const updateSubscriptionPlanDiscountService = async ({
       "en-IN"
     )}. Open plans to check your discounted price.`,
     category: "PLAN_DISCOUNT",
-    meta: { validUntil: endsAt, prices },
+    meta: { validUntil: endsAt, prices, plans },
   });
-  return getSubscriptionPlanConfigsService();
+  return plans;
 };
 
 const serializeAdminOffer = (offer: any) => ({
