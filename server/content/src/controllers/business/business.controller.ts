@@ -11,6 +11,7 @@ import {
   getSubscriptionPlanConfigsService,
   updateSubscriptionPlanPricesService,
   updateSubscriptionPlanDiscountService,
+  deleteSubscriptionPlanDiscountService,
   createMobileNotificationService,
   deleteMobileNotificationService,
   createRazorpayPlanOrderService,
@@ -347,6 +348,18 @@ export const getMobileNotificationsController = async (
     );
   } catch (error: any) {
     return errorResponse(res, error.message, HTTP_STATUS.INTERNAL_SERVER_ERROR);
+  }
+};
+
+export const deleteSubscriptionPlanDiscountController = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const plans = await deleteSubscriptionPlanDiscountService();
+    return successResponse(res, { plans }, "Plan discount deleted successfully", HTTP_STATUS.OK);
+  } catch (error: any) {
+    return errorResponse(res, error.message, HTTP_STATUS.BAD_REQUEST);
   }
 };
 

@@ -11,6 +11,7 @@ import {
   getSubscriptionPlanConfigsController,
   updateSubscriptionPlanPricesController,
   updateSubscriptionPlanDiscountController,
+  deleteSubscriptionPlanDiscountController,
   createMobileNotificationController,
   createRazorpayPlanOrderController,
   deleteMobileNotificationController,
@@ -76,6 +77,13 @@ router.patch(
   authenticateAdminToken,
   requireSuperAdminToken,
   updateSubscriptionPlanDiscountController
+);
+
+router.delete(
+  "/admin/plans/discount",
+  authenticateAdminToken,
+  requireSuperAdminToken,
+  deleteSubscriptionPlanDiscountController
 );
 
 router.get(
