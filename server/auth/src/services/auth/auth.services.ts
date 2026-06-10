@@ -7,6 +7,8 @@ import axios from "axios";
 
 const ADMIN_REALTIME_URL =
   process.env.ADMIN_REALTIME_URL || "http://realtime:3003/realtime/admin-broadcast";
+const CONTENT_SERVICE_URL =
+  process.env.CONTENT_SERVICE_URL || "http://content:3002";
 
 const notifyAdminDashboard = async (eventType: string, data: any) => {
   try {
@@ -41,6 +43,7 @@ interface LoginResult{
         phone: string | null;
         profileImageUrl: string | null;
         role: Role;
+        businessId: number | null;
     };
 }
 
@@ -119,6 +122,7 @@ export const registerService = async ({
         phone: user.phone,
         profileImageUrl: user.profileImageUrl,
         role: user.role,
+        businessId: user.businessId,
         },
     };
 }catch(err:any){
@@ -158,8 +162,8 @@ export const LoginUser = async (
   if (user.businessId) {
     try {
       const response = await axios.get(
-        `http://texboard-content-1:3002/api/business/${user.businessId}`
-        );
+        `${CONTENT_SERVICE_URL}/api/business/${user.businessId}`
+      );
 
       business = response.data.data;
     } catch (err:any) {
@@ -188,6 +192,7 @@ export const LoginUser = async (
       phone: user.phone,
       profileImageUrl: user.profileImageUrl,
       role: user.role,
+      businessId: user.businessId,
     },
     business, // ✅ now coming from content service
   };
