@@ -536,6 +536,22 @@ export const updateSubscriptionPlanDiscountService = async ({
   return plans;
 };
 
+export const deleteSubscriptionPlanDiscountService = async () => {
+  await ensurePlanConfigs();
+  const editablePlanIds = ["clay", "metal", "steel"];
+  for (const id of editablePlanIds) {
+    await (prisma as any).subscriptionPlanConfig.update({
+      where: { id },
+      data: {
+        discountName: null,
+        discountAmount: null,
+        discountEndsAt: null,
+      },
+    });
+  }
+  return broadcastPlanConfigUpdate();
+};
+
 const serializeAdminOffer = (offer: any) => ({
   id: offer.id,
   type: offer.type,
