@@ -757,6 +757,9 @@ const getAdminBusinessDeviceOverviewService = async (businessId: number) => {
                 },
                 adminOffers: {
                     orderBy: { createdAt: "desc" }
+                },
+                planTransactions: {
+                    orderBy: { createdAt: "desc" }
                 }
             }
         });
@@ -771,6 +774,9 @@ const getAdminBusinessDeviceOverviewService = async (businessId: number) => {
             include: {
                 devices: {
                     where: { isActive: true },
+                    orderBy: { createdAt: "desc" }
+                },
+                planTransactions: {
                     orderBy: { createdAt: "desc" }
                 }
             }
@@ -894,6 +900,7 @@ const getAdminBusinessDeviceOverviewService = async (businessId: number) => {
             subscriptionCurrency: (business as any).subscriptionCurrency ?? "INR",
             subscriptionStartedAt: (business as any).subscriptionStartedAt,
             subscriptionTrialEndsAt: (business as any).subscriptionTrialEndsAt,
+            subscriptionEndsAt: (business as any).subscriptionEndsAt,
             subscriptionOfferPlanId: (business as any).subscriptionOfferPlanId,
             subscriptionOfferPlanName: (business as any).subscriptionOfferPlanName,
             subscriptionOfferOriginalAmount:
@@ -920,6 +927,7 @@ const getAdminBusinessDeviceOverviewService = async (businessId: number) => {
                     currency: (business as any).subscriptionCurrency ?? "INR",
                     startedAt: (business as any).subscriptionStartedAt,
                     trialEndsAt: (business as any).subscriptionTrialEndsAt,
+                    endsAt: (business as any).subscriptionEndsAt,
                     offer: activeOffer ?? fallbackOffer,
                     offers,
                 }
@@ -927,7 +935,27 @@ const getAdminBusinessDeviceOverviewService = async (businessId: number) => {
             createdAt: business.createdAt,
             updatedAt: business.updatedAt
         },
-        devices
+        devices,
+        transactions: (((business as any).planTransactions as any[]) ?? []).map(
+            (transaction) => ({
+                id: transaction.id,
+                transactionId: transaction.transactionId,
+                invoiceId: transaction.invoiceId,
+                amount: Number(transaction.amount ?? 0),
+                currency: transaction.currency ?? "INR",
+                status: transaction.status ?? "success",
+                method: transaction.method ?? "plan",
+                planId: transaction.planId,
+                planName: transaction.planName,
+                description: transaction.description,
+                customerId: transaction.customerId,
+                customerName: transaction.customerName,
+                businessId: transaction.businessId,
+                businessName: business.name,
+                createdAt: transaction.createdAt,
+                updatedAt: transaction.updatedAt,
+            })
+        )
     };
 };
 

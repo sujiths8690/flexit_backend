@@ -30,6 +30,7 @@ model Business {
   subscriptionCurrency String?        @default("INR")
   subscriptionStartedAt DateTime?
   subscriptionTrialEndsAt DateTime?
+  subscriptionEndsAt DateTime?
   subscriptionOfferPlanId String?
   subscriptionOfferPlanName String?
   subscriptionOfferOriginalAmount Decimal?
