@@ -19,6 +19,6 @@ RUN npm run build
 
 EXPOSE 3004
 
-# Start with migration (if using Prisma)
-CMD ["node", "dist/app.js"]
+# Apply pending schema changes before accepting activity requests.
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/app.js"]
 
