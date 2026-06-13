@@ -94,27 +94,14 @@ export const initialize = (webSocketServer: WebSocketServer) => {
 
         sendLatestDeviceMessage(ws, deviceCode);
       } else {
-        const adminToken = url.searchParams.get("adminToken");
-        if (adminToken) {
-          const decoded: any = jwt.verify(
-            adminToken,
-            process.env.JWT_SECRET as string
-          );
-
-          if (!decoded.adminId || !decoded.role) {
-            console.log("WS Rejected: admin token missing adminId or role");
-            ws.close();
-            return;
-          }
-
-          ws.adminId = decoded.adminId as number;
-          adminConnections.add(ws);
-          console.log("Admin WS Connected:", ws.adminId);
-          ws.send(JSON.stringify({ type: "ADMIN_WS_CONNECTED" }));
-          return;
-        }
-
-        const token = url.searchParams.get("token");
+        const authorization = req.headers.authorization;
+        const headerToken = authorization?.startsWith("Bearer ")
+          ? authorization.slice("Bearer ".length)
+          : undefined;
+        const token =
+          headerToken ||
+          url.searchParams.get("adminToken") ||
+          url.searchParams.get("token");
 
         if (!token) {
           console.log("WS Rejected: missing token or deviceCode");
@@ -122,10 +109,23 @@ export const initialize = (webSocketServer: WebSocketServer) => {
           return;
         }
 
-        const decoded: any = jwt.verify(
-          token,
-          process.env.JWT_SECRET as string
-        );
+        let decoded: any;
+        try {
+          decoded = jwt.verify(token, process.env.JWT_SECRET as string);
+        } catch {
+          decoded = jwt.verify(
+            token,
+            process.env.ADMIN_JWT_SECRET as string
+          );
+        }
+
+        if (decoded.adminId && decoded.role) {
+          ws.adminId = decoded.adminId as number;
+          adminConnections.add(ws);
+          console.log("Admin WS Connected:", ws.adminId);
+          ws.send(JSON.stringify({ type: "ADMIN_WS_CONNECTED" }));
+          return;
+        }
 
         if (!decoded.businessId || !decoded.userId) {
           console.log("WS Rejected: token missing businessId or userId");

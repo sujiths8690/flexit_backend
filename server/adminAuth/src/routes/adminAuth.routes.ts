@@ -13,10 +13,19 @@ import {
 } from "../controllers/adminAuth.controller";
 import { requestAnalytics } from "../controllers/requestAnalytics.controller";
 import { authenticateAdmin, requireSuperAdmin } from "../middleware/auth";
+import { createRateLimiter } from "../utils/security";
 
 const router = Router();
 
-router.post("/login", login);
+router.post(
+  "/login",
+  createRateLimiter({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    keyPrefix: "admin-login",
+  }),
+  login
+);
 router.get("/me", authenticateAdmin, me);
 router.get(
   "/request-analytics",

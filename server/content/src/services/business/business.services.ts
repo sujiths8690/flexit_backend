@@ -1,5 +1,6 @@
 import prisma from "../../config/prisma";
 import crypto from "crypto";
+import jwt from "jsonwebtoken";
 import Razorpay from "razorpay";
 import { broadcastBusinessDisplayConfigs } from "../../utils/deviceDisplayRealtime";
 import { sendMobilePush } from "../../utils/mobilePush";
@@ -27,6 +28,10 @@ type RazorpayOrderInput = {
   businessId: number;
   userId?: number;
   planId: string;
+};
+
+type PaymentLinkTokenInput = RazorpayOrderInput & {
+  role?: string;
 };
 
 type RazorpayVerifyInput = RazorpayOrderInput & {
@@ -129,6 +134,11 @@ const verifyRazorpaySignature = ({
     Buffer.from(signature)
   );
 };
+
+const paymentJwtSecret = () =>
+  process.env.PAYMENT_JWT_SECRET ||
+  process.env.JWT_SECRET ||
+  "local-payment-secret";
 
 const serializePlanTransaction = (transaction: any) => ({
   id: transaction.id,
@@ -1094,6 +1104,35 @@ export const createRazorpayPlanOrderService = async ({
       email: business.email,
       mobile: business.mobile,
     },
+  };
+};
+
+export const createPaymentLinkTokenService = async ({
+  businessId,
+  userId,
+  planId,
+  role,
+}: PaymentLinkTokenInput) => {
+  const business = await findBusinessWithOptionalAdminOffers(businessId);
+  if (!business) throw new Error("BUSINESS_NOT_FOUND");
+  const plan = await resolvePayablePlan(business, planId);
+
+  const token = jwt.sign(
+    {
+      purpose: "payment",
+      userId,
+      businessId,
+      role,
+      planId: plan.id,
+    },
+    paymentJwtSecret(),
+    { expiresIn: "10m" }
+  );
+
+  return {
+    token,
+    planId: plan.id,
+    expiresInSeconds: 600,
   };
 };
 

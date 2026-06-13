@@ -13,6 +13,7 @@ import {
   updateSubscriptionPlanDiscountService,
   deleteSubscriptionPlanDiscountService,
   createMobileNotificationService,
+  createPaymentLinkTokenService,
   deleteMobileNotificationService,
   createRazorpayPlanOrderService,
   getBusinessPlanTransactionsService,
@@ -513,6 +514,38 @@ export const createRazorpayPlanOrderController = async (
       PLAN_NOT_FOUND: "Choose a valid plan",
       PLAN_NOT_PAYABLE: "This plan does not require payment",
       RAZORPAY_NOT_CONFIGURED: "Payment gateway is not configured",
+    };
+    return errorResponse(
+      res,
+      messages[error.message] || error.message,
+      HTTP_STATUS.BAD_REQUEST
+    );
+  }
+};
+
+export const createPaymentLinkTokenController = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const result = await createPaymentLinkTokenService({
+      businessId: req.user!.businessId,
+      userId: req.user!.userId,
+      role: req.user!.role,
+      planId: String(req.body?.planId ?? ""),
+    });
+
+    return successResponse(
+      res,
+      result,
+      "Payment token created successfully",
+      HTTP_STATUS.CREATED
+    );
+  } catch (error: any) {
+    const messages: Record<string, string> = {
+      BUSINESS_NOT_FOUND: "Business not found",
+      PLAN_NOT_FOUND: "Choose a valid plan",
+      PLAN_NOT_PAYABLE: "This plan does not require payment",
     };
     return errorResponse(
       res,

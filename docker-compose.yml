@@ -4,14 +4,14 @@ services:
     image: mysql:8
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: Adithya8@
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
     ports:
       - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-pAdithya8@"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -p$$MYSQL_ROOT_PASSWORD"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -21,7 +21,9 @@ services:
     ports:
       - "4000:3000"
     environment:
-      REQUEST_ANALYTICS_INTERNAL_SECRET: ${REQUEST_ANALYTICS_INTERNAL_SECRET:-flexit-request-analytics-secret}
+      NODE_ENV: production
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://flexit.online,https://www.flexit.online}
+      REQUEST_ANALYTICS_INTERNAL_SECRET: ${REQUEST_ANALYTICS_INTERNAL_SECRET:?REQUEST_ANALYTICS_INTERNAL_SECRET is required}
     depends_on:
       - auth
       - admin-auth
@@ -34,8 +36,11 @@ services:
     ports:
       - "4005:3005"
     environment:
+      NODE_ENV: production
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://flexit.online,https://www.flexit.online}
+      JWT_SECRET: ${ADMIN_JWT_SECRET:?ADMIN_JWT_SECRET is required}
       REQUEST_ANALYTICS_URL: http://gateway:3000/internal/request-analytics
-      REQUEST_ANALYTICS_INTERNAL_SECRET: ${REQUEST_ANALYTICS_INTERNAL_SECRET:-flexit-request-analytics-secret}
+      REQUEST_ANALYTICS_INTERNAL_SECRET: ${REQUEST_ANALYTICS_INTERNAL_SECRET:?REQUEST_ANALYTICS_INTERNAL_SECRET is required}
     env_file:
       - ./server/adminAuth/.env
     depends_on:
@@ -47,6 +52,11 @@ services:
     restart: unless-stopped
     ports:
       - "4001:3001"
+    environment:
+      NODE_ENV: production
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://flexit.online,https://www.flexit.online}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?ADMIN_JWT_SECRET is required}
+      REALTIME_INTERNAL_SECRET: ${REALTIME_INTERNAL_SECRET:?REALTIME_INTERNAL_SECRET is required}
     env_file:
       - ./server/auth/.env
     depends_on:
@@ -59,7 +69,13 @@ services:
     ports:
       - "4002:3002"
     environment:
+      NODE_ENV: production
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://flexit.online,https://www.flexit.online}
       REDIS_URL: redis://redis:6379
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?ADMIN_JWT_SECRET is required}
+      REALTIME_INTERNAL_SECRET: ${REALTIME_INTERNAL_SECRET:?REALTIME_INTERNAL_SECRET is required}
+      PAYMENT_JWT_SECRET: ${PAYMENT_JWT_SECRET:?PAYMENT_JWT_SECRET is required}
+      PUBLIC_UPLOAD_BASE_URL: ${PUBLIC_UPLOAD_BASE_URL:-https://api.flexit.online}
     env_file:
       - ./server/content/.env
     depends_on:
@@ -67,6 +83,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+    volumes:
+      - content_uploads:/app/uploads
 
   redis:
     image: redis:7-alpine
@@ -78,6 +96,10 @@ services:
     build: ./server/realtime
     ports:
       - "4003:3003"
+    environment:
+      NODE_ENV: production
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?ADMIN_JWT_SECRET is required}
+      REALTIME_INTERNAL_SECRET: ${REALTIME_INTERNAL_SECRET:?REALTIME_INTERNAL_SECRET is required}
     env_file:
       - ./server/realtime/.env
 
@@ -86,6 +108,10 @@ services:
     restart: unless-stopped
     ports:
       - "4004:3004"
+    environment:
+      NODE_ENV: production
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?ADMIN_JWT_SECRET is required}
+      REALTIME_INTERNAL_SECRET: ${REALTIME_INTERNAL_SECRET:?REALTIME_INTERNAL_SECRET is required}
     env_file:
       - ./server/userActivity/.env
     depends_on:
@@ -94,3 +120,4 @@ services:
 
 volumes:
   mysql_data:
+  content_uploads:

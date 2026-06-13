@@ -13,6 +13,7 @@ import {
   updateSubscriptionPlanDiscountController,
   deleteSubscriptionPlanDiscountController,
   createMobileNotificationController,
+  createPaymentLinkTokenController,
   createRazorpayPlanOrderController,
   deleteMobileNotificationController,
   getMobileNotificationsController,
@@ -120,6 +121,12 @@ router.get(
   "/payments/transactions",
   authenticate,
   getMyPlanTransactionsController
+);
+
+router.post(
+  "/payments/link-token",
+  authenticate,
+  createPaymentLinkTokenController
 );
 
 router.post(

@@ -3,8 +3,15 @@ import { AdminRole } from "@prisma/client";
 import prisma from "../config/prisma";
 
 export const seedSuperAdmin = async () => {
-  const email = process.env.SUPERADMIN_EMAIL || "superadmin@flexitinvaikom";
-  const password = process.env.SUPERADMIN_PASSWORD || "FlexitAdmin8634@";
+  if (
+    process.env.NODE_ENV === "production" &&
+    (!process.env.SUPERADMIN_EMAIL || !process.env.SUPERADMIN_PASSWORD)
+  ) {
+    throw new Error("SUPERADMIN_EMAIL and SUPERADMIN_PASSWORD are required");
+  }
+
+  const email = process.env.SUPERADMIN_EMAIL || "superadmin@flexit.local";
+  const password = process.env.SUPERADMIN_PASSWORD || "ChangeMeOnlyForLocalDev!";
   const name = process.env.SUPERADMIN_NAME || "Flexit Superadmin";
 
   const existing = await prisma.adminUser.findUnique({ where: { email } });
