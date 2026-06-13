@@ -9,6 +9,7 @@ import {
   extendBusinessPlanService,
   setBusinessPlanOfferService,
   getSubscriptionPlanConfigsService,
+  updateSubscriptionPlanConfigsService,
   updateSubscriptionPlanPricesService,
   updateSubscriptionPlanDiscountService,
   deleteSubscriptionPlanDiscountService,
@@ -290,13 +291,40 @@ export const getSubscriptionPlanConfigsController = async (
   }
 };
 
+export const updateSubscriptionPlanConfigsController = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const plans = await updateSubscriptionPlanConfigsService(req.body?.plans ?? {});
+    return successResponse(res, { plans }, "Plan settings updated successfully", HTTP_STATUS.OK);
+  } catch (error: any) {
+    const messages: Record<string, string> = {
+      INVALID_PLAN_PRICE: "Enter a valid price for every plan",
+      INVALID_TV_LIMIT: "TV limits must be whole numbers between 1 and 100, with maximum not lower than minimum",
+    };
+    return errorResponse(
+      res,
+      messages[error.message] || error.message,
+      HTTP_STATUS.BAD_REQUEST
+    );
+  }
+};
+
 export const updateSubscriptionPlanPricesController = async (
   req: Request,
   res: Response
 ) => {
   try {
-    const plans = await updateSubscriptionPlanPricesService(req.body?.prices ?? {});
-    return successResponse(res, { plans }, "Plan prices updated successfully", HTTP_STATUS.OK);
+    const plans = await updateSubscriptionPlanPricesService(
+      req.body?.prices ?? {}
+    );
+    return successResponse(
+      res,
+      { plans },
+      "Plan prices updated successfully",
+      HTTP_STATUS.OK
+    );
   } catch (error: any) {
     const messages: Record<string, string> = {
       INVALID_PLAN_PRICE: "Enter a valid price for every plan",

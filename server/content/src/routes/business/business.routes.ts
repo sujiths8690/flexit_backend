@@ -9,6 +9,7 @@ import {
   extendBusinessPlanController,
   setBusinessPlanOfferController,
   getSubscriptionPlanConfigsController,
+  updateSubscriptionPlanConfigsController,
   updateSubscriptionPlanPricesController,
   updateSubscriptionPlanDiscountController,
   deleteSubscriptionPlanDiscountController,
@@ -64,6 +65,13 @@ router.delete(
   authenticateAdminToken,
   requireSuperAdminToken,
   deleteMobileNotificationController
+);
+
+router.patch(
+  "/admin/plans",
+  authenticateAdminToken,
+  requireSuperAdminToken,
+  updateSubscriptionPlanConfigsController
 );
 
 router.patch(

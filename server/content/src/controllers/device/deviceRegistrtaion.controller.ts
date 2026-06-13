@@ -118,6 +118,15 @@ export const pairDeviceController = async (req: Request, res: Response) => {
             return errorResponse(res, error.message, HTTP_STATUS.CONFLICT);
         }
 
+        if (error.message.includes("DEVICE_LIMIT_REACHED")) {
+            const limit = error.message.split(":")[1];
+            return errorResponse(
+                res,
+                `Your current plan allows up to ${limit} TV${limit === "1" ? "" : "s"}.`,
+                HTTP_STATUS.BAD_REQUEST
+            );
+        }
+
         return errorResponse(
             res,
             error.message,
