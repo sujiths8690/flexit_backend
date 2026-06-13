@@ -6,7 +6,28 @@ interface JwtPayload {
   userId: number;
   businessId: number;
   role: Role;
+  purpose?: string;
+  planId?: string;
 }
+
+const paymentJwtSecret = () =>
+  process.env.PAYMENT_JWT_SECRET ||
+  process.env.JWT_SECRET ||
+  "local-payment-secret";
+
+const validatePaymentToken = (req: Request, res: Response, decoded: JwtPayload) => {
+  const isPaymentRoute = req.originalUrl.includes("/payments/razorpay/");
+  if (decoded.purpose !== "payment" || !isPaymentRoute) {
+    res.status(401).json({ error: "Invalid token scope" });
+    return false;
+  }
+  const bodyPlanId = String(req.body?.planId ?? "").trim().toLowerCase();
+  if (decoded.planId && decoded.planId !== bodyPlanId) {
+    res.status(403).json({ error: "Payment token does not match this plan" });
+    return false;
+  }
+  return true;
+};
 
 export const authenticate = (
   req: Request,
@@ -28,10 +49,16 @@ export const authenticate = (
       return;
     }
 
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET as string
-    ) as JwtPayload;
+    let decoded: JwtPayload;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET as string) as JwtPayload;
+      if (decoded.purpose) {
+        if (!validatePaymentToken(req, res, decoded)) return;
+      }
+    } catch (error) {
+      decoded = jwt.verify(token, paymentJwtSecret()) as JwtPayload;
+      if (!validatePaymentToken(req, res, decoded)) return;
+    }
 
     // ✅ JUST TRUST JWT (NO DB CALL)
     req.user = {

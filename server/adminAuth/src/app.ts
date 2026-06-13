@@ -1,24 +1,26 @@
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import helmet from "helmet";
 import http from "http";
 import adminAuthRoutes from "./routes/adminAuth.routes";
 import { seedSuperAdmin } from "./services/seed";
+import { corsOptions, createRateLimiter, securityHeaders } from "./utils/security";
 
 dotenv.config();
+
+if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
+  throw new Error("JWT_SECRET is required in production");
+}
 
 const app = express();
 const server = http.createServer(app);
 
-app.use(
-  cors({
-    origin: "*",
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
-
-app.use(express.json());
+app.use(helmet());
+app.use(securityHeaders);
+app.use(cors(corsOptions));
+app.use(createRateLimiter({ windowMs: 60 * 1000, max: 180, keyPrefix: "admin-auth" }));
+app.use(express.json({ limit: "1mb" }));
 
 app.get("/health", (_req, res) => {
   res.json({ success: true, service: "admin-auth" });

@@ -7,13 +7,21 @@ import {
   getActivities,
   getAppErrors,
 } from "../controllers/userActivity.controller";
+import { authenticateAdmin } from "../middleware/adminAuth";
+import { createRateLimiter } from "../utils/rateLimit";
 
 const router = Router();
 
-router.post("/", createActivity);
-router.get("/", getActivities);
-router.post("/errors", createAppError);
-router.get("/errors", getAppErrors);
-router.delete("/errors/:errorId", deleteAppError);
+const reportLimiter = createRateLimiter({
+  windowMs: 10 * 60 * 1000,
+  max: 60,
+  keyPrefix: "activity-report",
+});
+
+router.post("/", reportLimiter, createActivity);
+router.get("/", authenticateAdmin, getActivities);
+router.post("/errors", reportLimiter, createAppError);
+router.get("/errors", authenticateAdmin, getAppErrors);
+router.delete("/errors/:errorId", authenticateAdmin, deleteAppError);
 
 export default router;

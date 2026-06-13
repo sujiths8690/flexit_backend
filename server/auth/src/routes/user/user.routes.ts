@@ -18,6 +18,7 @@ import {
 import { authenticate } from "../../middleware/auth";
 import { authenticateAdminToken } from "../../middleware/adminAuth";
 import { allowRoles } from "../../middleware/role";
+import { createRateLimiter } from "../../utils/security";
 import { Role } from "@prisma/client";
 
 const router = Router();
@@ -120,11 +121,21 @@ router.post(
 // Forgot password (public)
 router.post(
   "/forgot-password",
+  createRateLimiter({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    keyPrefix: "forgot-password",
+  }),
   passwordReset
 );
 
 router.post(
   "/reset-password",
+  createRateLimiter({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    keyPrefix: "reset-password",
+  }),
   resetPasswordWithToken
 );
 

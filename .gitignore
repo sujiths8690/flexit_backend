@@ -21,6 +21,7 @@ build/
 .env
 .env.*
 server/.env
+server/**/.env
 
 # ===============================
 # 🔹 PRISMA
@@ -60,3 +61,6 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
+
+# Runtime user uploads
+server/content/uploads/

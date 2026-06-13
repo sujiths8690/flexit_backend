@@ -2,25 +2,28 @@ import express from 'express';
 import dotenv from 'dotenv';
 import http from 'http';
 import cors from "cors";
+import helmet from "helmet";
 
 import authRoutes from "./routes/auth/auth.routes";
 import userRoutes from "./routes/user/user.routes";
+import { corsOptions, createRateLimiter, securityHeaders } from "./utils/security";
 
 dotenv.config();
+
+if (process.env.NODE_ENV === "production" && !process.env.JWT_SECRET) {
+    throw new Error("JWT_SECRET is required in production");
+}
 
 const app= express();
 const server = http.createServer(app);
 
-//Enable CORS for all origins
-app.use(cors({
-    origin: "*",
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials:true
-}));
+app.use(helmet());
+app.use(securityHeaders);
+app.use(cors(corsOptions));
+app.use(createRateLimiter({ windowMs: 60 * 1000, max: 300, keyPrefix: "auth" }));
 
 //Middleware
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
 
 //Routes
 app.use("/api/auth", authRoutes);
