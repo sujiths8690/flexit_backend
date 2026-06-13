@@ -57,6 +57,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-https://flexit.online,https://www.flexit.online}
       ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?ADMIN_JWT_SECRET is required}
       REALTIME_INTERNAL_SECRET: ${REALTIME_INTERNAL_SECRET:?REALTIME_INTERNAL_SECRET is required}
+      PASSWORD_RESET_SECRET: ${PASSWORD_RESET_SECRET:?PASSWORD_RESET_SECRET is required}
     env_file:
       - ./server/auth/.env
     depends_on:

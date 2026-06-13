@@ -416,46 +416,100 @@ export const changePasswordService= async({
 export const requestPasswordResetService= async(
     email:string
 )=>{
+    const normalizedEmail = email.trim().toLowerCase();
     const user= await prisma.user.findFirst({
-        where:{email}
+        where:{email: normalizedEmail}
     });
 
     if(!user) return;
 
-    const token = crypto.randomBytes(32).toString("hex");
+    const otp = crypto.randomInt(100000, 1000000).toString();
+    const tokenHash = passwordResetHash(otp);
 
-    const tokenHash= crypto
-        .createHash("sha256")
-        .update( token)
-        .digest("hex")
+    await prisma.passwordResetToken.deleteMany({
+        where: { userId: user.id },
+    });
 
     await prisma.passwordResetToken.create({
         data:{
             tokenHash,
             userId: user.id,
-            expiresAt: new Date(Date.now() + 1000 * 60 * 15),
+            expiresAt: new Date(Date.now() + 1000 * 60 * 10),
         },
     });
 
-    const resetLink = `${process.env.FRONTEND_URL || "texboard://reset-password"}?token=${token}`;
+    const resetLink = `${(process.env.FRONTEND_URL || "https://flexit.online").replace(/\/$/, "")}/reset-password`;
 
-    await sendResetEmail(user.email!, resetLink);
-
-    return token;
+    await sendResetEmail(user.email!, otp, resetLink);
 }
+
+const passwordResetHash = (value: string) => {
+    const secret = process.env.PASSWORD_RESET_SECRET;
+    if (!secret) throw new Error("PASSWORD_RESET_SECRET_NOT_CONFIGURED");
+    return crypto.createHmac("sha256", secret).update(value).digest("hex");
+};
+
+export const verifyPasswordResetOtpService = async (
+    email: string,
+    otp: string
+) => {
+    const user = await prisma.user.findFirst({
+        where: { email: email.trim().toLowerCase() },
+        select: { id: true },
+    });
+    if (!user) throw new Error("INVALID_OR_EXPIRED_OTP");
+
+    const resetRequest = await prisma.passwordResetToken.findFirst({
+        where: {
+            userId: user.id,
+            verifiedAt: null,
+            expiresAt: { gt: new Date() },
+        },
+        orderBy: { createdAt: "desc" },
+    });
+    if (!resetRequest || resetRequest.attemptCount >= 5) {
+        throw new Error("INVALID_OR_EXPIRED_OTP");
+    }
+
+    const candidateHash = passwordResetHash(otp);
+    const expected = Buffer.from(resetRequest.tokenHash, "hex");
+    const candidate = Buffer.from(candidateHash, "hex");
+    const matches = expected.length === candidate.length &&
+        crypto.timingSafeEqual(expected, candidate);
+
+    if (!matches) {
+        const updated = await prisma.passwordResetToken.update({
+            where: { id: resetRequest.id },
+            data: { attemptCount: { increment: 1 } },
+        });
+        if (updated.attemptCount >= 5) {
+            await prisma.passwordResetToken.delete({ where: { id: updated.id } });
+        }
+        throw new Error("INVALID_OR_EXPIRED_OTP");
+    }
+
+    const resetToken = crypto.randomBytes(32).toString("base64url");
+    await prisma.passwordResetToken.update({
+        where: { id: resetRequest.id },
+        data: {
+            tokenHash: passwordResetHash(resetToken),
+            verifiedAt: new Date(),
+            expiresAt: new Date(Date.now() + 1000 * 60 * 10),
+        },
+    });
+    return resetToken;
+};
 
 export const resetPasswordWithTokenService = async (
     token: string,
     newPassword: string
 ) => {
-    const tokenHash = crypto
-        .createHash("sha256")
-        .update(token)
-        .digest("hex");
+    const tokenHash = passwordResetHash(token);
 
     const resetToken = await prisma.passwordResetToken.findFirst({
         where: {
             tokenHash,
+            verifiedAt: { not: null },
             expiresAt: { gt: new Date() },
         },
         orderBy: { createdAt: "desc" },
@@ -467,14 +521,15 @@ export const resetPasswordWithTokenService = async (
 
     const hashed = await bcrypt.hash(newPassword, 12);
 
-    await prisma.user.update({
-        where: { id: resetToken.userId },
-        data: { passwordHash: hashed },
-    });
-
-    await prisma.passwordResetToken.deleteMany({
-        where: { userId: resetToken.userId },
-    });
+    await prisma.$transaction([
+        prisma.user.update({
+            where: { id: resetToken.userId },
+            data: { passwordHash: hashed },
+        }),
+        prisma.passwordResetToken.deleteMany({
+            where: { userId: resetToken.userId },
+        }),
+    ]);
 
     return true;
 };
