@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { changePasswordService, createUserService, disableUserService, enableUserService, getAdminUserSummaryService, getOwnProfileService, getUserService, listAdminUsersService, requestPasswordResetService, resetPasswordWithTokenService, updateOwnProfileService, updateUserService, verifyCurrentPasswordService } from "../../services/user/user.service";
+import { changePasswordService, createUserService, disableUserService, enableUserService, getAdminUserSummaryService, getOwnProfileService, getUserService, listAdminUsersService, requestPasswordResetService, resetPasswordWithTokenService, updateOwnProfileService, updateUserService, verifyCurrentPasswordService, verifyPasswordResetOtpService } from "../../services/user/user.service";
 import { Role } from "@prisma/client";
 import {errorResponse, successResponse} from "../../utils/response.helper"
 import { HTTP_STATUS } from "../../utils/httpStatus";
@@ -470,12 +470,14 @@ export const passwordReset= async(
     req: Request, res: Response
 )=>{
     try{
-        const {email} = req.body;
+        const email = typeof req.body?.email === "string"
+            ? req.body.email.trim()
+            : "";
 
-        if(!email){
+        if(!email || !/^\S+@\S+\.\S+$/.test(email)){
             return errorResponse(
                 res,
-                "Email not provided!",
+                "Enter a valid email address",
                 HTTP_STATUS.BAD_REQUEST
             );
         }
@@ -485,25 +487,16 @@ export const passwordReset= async(
         return successResponse(
             res,
             null,
-            "If this email exists, a reset link has been sent",
+            "If this email exists, a reset code has been sent",
             HTTP_STATUS.OK
         );
     }catch(err:any){
-        if (
-            err.message === "EMAIL_SERVICE_NOT_CONFIGURED" ||
-            err.message === "EMAIL_SERVICE_SEND_FAILED"
-        ) {
-            return errorResponse(
-                res,
-                "Email service is not configured correctly. Use a Gmail App Password, not your normal Gmail password.",
-                HTTP_STATUS.INTERNAL_SERVER_ERROR
-            );
-        }
-
-        return errorResponse(
+        console.error("Password reset request failed:", err?.message ?? err);
+        return successResponse(
             res,
-            "Something went wrong",
-            HTTP_STATUS.INTERNAL_SERVER_ERROR
+            null,
+            "If this email exists, a reset code has been sent",
+            HTTP_STATUS.OK
         );
     }
 };
@@ -522,8 +515,21 @@ export const resetPasswordWithToken= async(
             );
         }
 
+        if (
+            typeof newPassword !== "string" ||
+            newPassword.length < 8 ||
+            newPassword.length > 128
+        ) {
+            return errorResponse(
+                res,
+                "Password must be between 8 and 128 characters",
+                HTTP_STATUS.BAD_REQUEST
+            );
+        }
+
         await resetPasswordWithTokenService(token, newPassword);
 
+        res.setHeader("Cache-Control", "no-store");
         return successResponse(
             res,
             null,
@@ -542,6 +548,42 @@ export const resetPasswordWithToken= async(
         return errorResponse(
             res,
             "Password reset failed",
+            HTTP_STATUS.INTERNAL_SERVER_ERROR
+        );
+    }
+};
+
+export const verifyPasswordResetOtp = async (req: Request, res: Response) => {
+    try {
+        const email = typeof req.body?.email === "string" ? req.body.email : "";
+        const otp = typeof req.body?.otp === "string" ? req.body.otp.trim() : "";
+        if (!email || !/^\d{6}$/.test(otp)) {
+            return errorResponse(
+                res,
+                "Enter your email and the six-digit code",
+                HTTP_STATUS.BAD_REQUEST
+            );
+        }
+
+        const resetToken = await verifyPasswordResetOtpService(email, otp);
+        res.setHeader("Cache-Control", "no-store");
+        return successResponse(
+            res,
+            { resetToken },
+            "Code verified",
+            HTTP_STATUS.OK
+        );
+    } catch (err: any) {
+        if (err.message === "INVALID_OR_EXPIRED_OTP") {
+            return errorResponse(
+                res,
+                "The code is invalid or expired",
+                HTTP_STATUS.BAD_REQUEST
+            );
+        }
+        return errorResponse(
+            res,
+            "Code verification failed",
             HTTP_STATUS.INTERNAL_SERVER_ERROR
         );
     }

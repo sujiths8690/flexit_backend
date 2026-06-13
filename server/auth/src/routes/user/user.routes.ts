@@ -12,6 +12,7 @@ import {
   changePassword,
   verifyCurrentPassword,
   passwordReset,
+  verifyPasswordResetOtp,
   resetPasswordWithToken,
 } from "../../controllers/user/user.controller";
 
@@ -127,6 +128,16 @@ router.post(
     keyPrefix: "forgot-password",
   }),
   passwordReset
+);
+
+router.post(
+  "/verify-reset-otp",
+  createRateLimiter({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    keyPrefix: "verify-reset-otp",
+  }),
+  verifyPasswordResetOtp
 );
 
 router.post(
