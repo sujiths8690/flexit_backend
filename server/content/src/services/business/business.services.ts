@@ -113,6 +113,20 @@ const razorpayClient = () => {
 
 const amountToPaise = (amount: number) => Math.round(amount * 100);
 
+const addCalendarMonth = (value: Date) => {
+  const result = new Date(value);
+  const day = result.getDate();
+  result.setDate(1);
+  result.setMonth(result.getMonth() + 1);
+  const lastDay = new Date(
+    result.getFullYear(),
+    result.getMonth() + 1,
+    0
+  ).getDate();
+  result.setDate(Math.min(day, lastDay));
+  return result;
+};
+
 const verifyRazorpaySignature = ({
   orderId,
   paymentId,
@@ -710,6 +724,7 @@ const serializeBusiness = (business: any) => {
           currency: business.subscriptionCurrency ?? "INR",
           startedAt: business.subscriptionStartedAt,
           trialEndsAt: business.subscriptionTrialEndsAt,
+          endsAt: business.subscriptionEndsAt,
           offer: activeOffer,
           offers,
         }
@@ -903,8 +918,14 @@ export const extendBusinessPlanService = async ({
   const business = await prisma.business.findUnique({ where: { id } });
   if (!business) throw new Error("BUSINESS_NOT_FOUND");
 
-  const currentEnd =
-    (business as any).subscriptionTrialEndsAt instanceof Date
+  const isPaidPlan =
+    Boolean((business as any).subscriptionPlanId) &&
+    String((business as any).subscriptionPlanId).toLowerCase() !== "trial";
+  const currentEnd = isPaidPlan
+    ? (business as any).subscriptionEndsAt instanceof Date
+      ? (business as any).subscriptionEndsAt
+      : null
+    : (business as any).subscriptionTrialEndsAt instanceof Date
       ? (business as any).subscriptionTrialEndsAt
       : null;
   const base = currentEnd && currentEnd > new Date() ? currentEnd : new Date();
@@ -915,7 +936,9 @@ export const extendBusinessPlanService = async ({
     await prisma.business.update({
       where: { id },
       data: {
-        subscriptionTrialEndsAt: nextEnd,
+        ...(isPaidPlan
+          ? { subscriptionEndsAt: nextEnd }
+          : { subscriptionTrialEndsAt: nextEnd }),
         subscriptionStatus: "active",
         subscriptionExtensionDays: days,
         subscriptionExtensionPreviousEndsAt: currentEnd,
@@ -928,7 +951,9 @@ export const extendBusinessPlanService = async ({
     await prisma.business.update({
       where: { id },
       data: {
-        subscriptionTrialEndsAt: nextEnd,
+        ...(isPaidPlan
+          ? { subscriptionEndsAt: nextEnd }
+          : { subscriptionTrialEndsAt: nextEnd }),
         subscriptionStatus: "active",
       } as any,
     });
@@ -1176,6 +1201,13 @@ export const verifyRazorpayPlanPaymentService = async ({
     };
   }
 
+  const renewalBase =
+    business.subscriptionEndsAt &&
+    new Date(business.subscriptionEndsAt).getTime() > Date.now()
+      ? new Date(business.subscriptionEndsAt)
+      : new Date();
+  const subscriptionEndsAt = addCalendarMonth(renewalBase);
+
   const updated = await prisma.$transaction(async (tx) => {
     const savedBusiness = await tx.business.update({
       where: { id: businessId },
@@ -1187,6 +1219,7 @@ export const verifyRazorpayPlanPaymentService = async ({
         subscriptionCurrency: plan.currency,
         subscriptionStartedAt: new Date(),
         subscriptionTrialEndsAt: null,
+        subscriptionEndsAt,
         subscriptionOfferPlanId: null,
         subscriptionOfferPlanName: null,
         subscriptionOfferOriginalAmount: null,
