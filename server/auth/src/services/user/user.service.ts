@@ -421,7 +421,7 @@ export const requestPasswordResetService= async(
         where:{email: normalizedEmail}
     });
 
-    if(!user) return;
+    if(!user) return false;
 
     const otp = crypto.randomInt(100000, 1000000).toString();
     const tokenHash = passwordResetHash(otp);
@@ -441,6 +441,7 @@ export const requestPasswordResetService= async(
     const resetLink = `${(process.env.FRONTEND_URL || "https://flexit.online").replace(/\/$/, "")}/reset-password`;
 
     await sendResetEmail(user.email!, otp, resetLink);
+    return true;
 }
 
 const passwordResetHash = (value: string) => {
