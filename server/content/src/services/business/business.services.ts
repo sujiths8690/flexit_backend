@@ -422,22 +422,61 @@ const resolvePayablePlan = async (business: any, planId: string) => {
   };
 };
 
-export const updateSubscriptionPlanPricesService = async (
-  prices: Record<string, number>
+export const updateSubscriptionPlanConfigsService = async (
+  configs: Record<
+    string,
+    { amount: number; minTvDevices: number; maxTvDevices: number }
+  >
 ) => {
   await ensurePlanConfigs();
   const editablePlanIds = ["clay", "metal", "steel"];
-  for (const id of editablePlanIds) {
-    const amount = Number(prices[id]);
+  const normalizedConfigs = editablePlanIds.map((id) => {
+    const config = configs[id];
+    const amount = Number(config?.amount);
+    const minTvDevices = Number(config?.minTvDevices);
+    const maxTvDevices = Number(config?.maxTvDevices);
     if (!Number.isFinite(amount) || amount < 0) {
       throw new Error("INVALID_PLAN_PRICE");
     }
-    await (prisma as any).subscriptionPlanConfig.update({
-      where: { id },
-      data: { amount },
-    });
-  }
+    if (
+      !Number.isInteger(minTvDevices) ||
+      !Number.isInteger(maxTvDevices) ||
+      minTvDevices < 1 ||
+      maxTvDevices < minTvDevices ||
+      maxTvDevices > 100
+    ) {
+      throw new Error("INVALID_TV_LIMIT");
+    }
+    return { id, amount, minTvDevices, maxTvDevices };
+  });
+  await (prisma as any).$transaction(
+    normalizedConfigs.map(({ id, amount, minTvDevices, maxTvDevices }) =>
+      (prisma as any).subscriptionPlanConfig.update({
+        where: { id },
+        data: { amount, minTvDevices, maxTvDevices },
+      })
+    )
+  );
   return broadcastPlanConfigUpdate();
+};
+
+export const updateSubscriptionPlanPricesService = async (
+  prices: Record<string, number>
+) => {
+  const currentPlans = await getSubscriptionPlanConfigsService();
+  const configs = Object.fromEntries(
+    currentPlans
+      .filter((plan: any) => plan.id !== "trial")
+      .map((plan: any) => [
+        plan.id,
+        {
+          amount: prices[plan.id],
+          minTvDevices: plan.minTvDevices,
+          maxTvDevices: plan.maxTvDevices,
+        },
+      ])
+  );
+  return updateSubscriptionPlanConfigsService(configs);
 };
 
 export const getMobileNotificationsService = async () => {

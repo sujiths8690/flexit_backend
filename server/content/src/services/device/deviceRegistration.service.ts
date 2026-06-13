@@ -103,6 +103,23 @@ const canonicalContentModes: Record<string, string> = {
     todaysstar: "todaysStar",
     todaystar: "todaysStar"
 };
+
+const defaultPlanTvLimits: Record<string, number> = {
+    trial: 1,
+    clay: 1,
+    metal: 4,
+    steel: 8
+};
+
+const getBusinessTvLimit = async (subscriptionPlanId?: string | null) => {
+    const planId = subscriptionPlanId?.trim().toLowerCase() || "trial";
+    const plan = await prisma.subscriptionPlanConfig.findUnique({
+        where: { id: planId },
+        select: { maxTvDevices: true }
+    });
+
+    return plan?.maxTvDevices ?? defaultPlanTvLimits[planId] ?? 1;
+};
 const contentModeOrder = [
     "category",
     "veg",
@@ -571,6 +588,17 @@ const pairDeviceByCodeService = async ({
 
         if (existingDevice && existingDevice.businessId !== businessId) {
             throw new Error("DEVICE_ALREADY_PAIRED");
+        }
+
+        if (!existingDevice) {
+            const [deviceCount, tvLimit] = await Promise.all([
+                prisma.device.count({ where: { businessId } }),
+                getBusinessTvLimit(business.subscriptionPlanId)
+            ]);
+
+            if (deviceCount >= tvLimit) {
+                throw new Error(`DEVICE_LIMIT_REACHED:${tvLimit}`);
+            }
         }
 
         const duplicateName = normalizedName
