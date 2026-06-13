@@ -142,6 +142,7 @@ app.use(
     target: contentUploadsTarget,
     changeOrigin: true,
     xfwd: true,
+    pathRewrite: (path) => `/uploads${path}`,
     logLevel: "debug",
   })
 );
