@@ -8,7 +8,10 @@ import {
 
 import { successResponse, errorResponse } from "../../utils/response.helper";
 import { HTTP_STATUS } from "../../utils/httpStatus";
-import { hasAllowedFileSignature } from "../../utils/upload";
+import {
+  hasAllowedFileSignature,
+  hasAllowedImageSignature,
+} from "../../utils/upload";
 
 const publicUploadUrl = (req: Request, file: Express.Multer.File) => {
   const configuredBase = process.env.PUBLIC_UPLOAD_BASE_URL?.replace(/\/$/, "");
@@ -24,11 +27,7 @@ export const uploadImageAssetController = async (req: Request, res: Response) =>
     if (!file) {
       return errorResponse(res, "File is required", HTTP_STATUS.BAD_REQUEST);
     }
-    if (!file.mimetype.startsWith("image/")) {
-      fs.unlink(file.path, () => {});
-      return errorResponse(res, "Only images are allowed", HTTP_STATUS.BAD_REQUEST);
-    }
-    if (!hasAllowedFileSignature(file)) {
+    if (!hasAllowedImageSignature(file)) {
       fs.unlink(file.path, () => {});
       return errorResponse(res, "Invalid image file", HTTP_STATUS.BAD_REQUEST);
     }
