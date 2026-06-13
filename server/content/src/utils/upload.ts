@@ -72,7 +72,11 @@ export const imageUpload = multer({
   },
 });
 
-export const hasAllowedFileSignature = (file: Express.Multer.File) => {
+export type AllowedFileKind = "image" | "video";
+
+export const allowedFileKind = (
+  file: Express.Multer.File
+): AllowedFileKind | null => {
   const fd = fs.openSync(file.path, "r");
   try {
     const header = Buffer.alloc(16);
@@ -89,14 +93,16 @@ export const hasAllowedFileSignature = (file: Express.Multer.File) => {
       header.subarray(8, 12).toString("ascii") === "WEBP";
     const isMp4OrMov = header.subarray(4, 8).toString("ascii") === "ftyp";
 
-    if (file.mimetype.startsWith("image/")) {
-      return isJpeg || isPng || isWebp;
-    }
-    if (file.mimetype.startsWith("video/")) {
-      return isMp4OrMov;
-    }
-    return false;
+    if (isJpeg || isPng || isWebp) return "image";
+    if (isMp4OrMov) return "video";
+    return null;
   } finally {
     fs.closeSync(fd);
   }
 };
+
+export const hasAllowedFileSignature = (file: Express.Multer.File) =>
+  allowedFileKind(file) !== null;
+
+export const hasAllowedImageSignature = (file: Express.Multer.File) =>
+  allowedFileKind(file) === "image";
