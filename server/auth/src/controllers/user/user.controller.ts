@@ -482,21 +482,22 @@ export const passwordReset= async(
             );
         }
 
-        await requestPasswordResetService(email);
+        const registered = await requestPasswordResetService(email);
 
         return successResponse(
             res,
-            null,
-            "If this email exists, a reset code has been sent",
+            { registered },
+            registered
+                ? "A reset code has been sent"
+                : "No account is registered with this email",
             HTTP_STATUS.OK
         );
     }catch(err:any){
         console.error("Password reset request failed:", err?.message ?? err);
-        return successResponse(
+        return errorResponse(
             res,
-            null,
-            "If this email exists, a reset code has been sent",
-            HTTP_STATUS.OK
+            "The reset email could not be sent. Please try again later.",
+            HTTP_STATUS.INTERNAL_SERVER_ERROR
         );
     }
 };
