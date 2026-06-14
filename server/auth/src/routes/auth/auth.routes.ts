@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { register, login, linkBusiness, usernameAvailable } from "../../controllers/auth/auth.controller";
+import { register, login, linkBusiness, usernameAvailable, requestDemo } from "../../controllers/auth/auth.controller";
 import { authenticate } from "../../middleware/auth";
 import { createRateLimiter } from "../../utils/security";
 
@@ -32,6 +32,16 @@ router.post(
 );
 
 router.get("/username-available", usernameAvailable);
+
+router.post(
+  "/demo-request",
+  createRateLimiter({
+    windowMs: 60 * 60 * 1000,
+    max: 5,
+    keyPrefix: "demo-request",
+  }),
+  requestDemo
+);
 
 router.post("/link-business", authenticate, linkBusiness);
 
