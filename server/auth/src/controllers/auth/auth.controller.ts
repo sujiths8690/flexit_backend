@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import { isUsernameAvailableService, linkBusinessService, LoginUser, registerService } from "../../services/auth/auth.services";
 import { errorResponse, successResponse } from "../../utils/response.helper";
 import { HTTP_STATUS } from "../../utils/httpStatus";
+import { sendDemoRequestEmail } from "../../services/mail/mail";
 
 /* ================================
    REGISTER USER (WITH businessId)
@@ -148,6 +149,53 @@ export const usernameAvailable = async (req: Request, res: Response) => {
     return errorResponse(
       res,
       err.message || "Username check failed",
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
+    );
+  }
+};
+
+export const requestDemo = async (req: Request, res: Response) => {
+  try {
+    const businessName = String(req.body?.businessName || "").trim();
+    const name = String(req.body?.name || "").trim();
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const phone = String(req.body?.phone || "").trim();
+    const tvScreens = String(req.body?.tvScreens || "").trim();
+    const message = String(req.body?.message || "").trim();
+
+    if (!businessName || !name || !email || !phone || !tvScreens) {
+      return errorResponse(
+        res,
+        "Business name, name, email, phone and TV count are required",
+        HTTP_STATUS.BAD_REQUEST
+      );
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return errorResponse(res, "Enter a valid email address", HTTP_STATUS.BAD_REQUEST);
+    }
+
+    await sendDemoRequestEmail({
+      businessName: businessName.slice(0, 120),
+      name: name.slice(0, 120),
+      email: email.slice(0, 160),
+      phone: phone.slice(0, 40),
+      tvScreens: tvScreens.slice(0, 40),
+      message: message.slice(0, 2000),
+    });
+
+    return successResponse(
+      res,
+      null,
+      "Demo request sent successfully",
+      HTTP_STATUS.OK
+    );
+  } catch (err: any) {
+    return errorResponse(
+      res,
+      err.message === "EMAIL_SERVICE_NOT_CONFIGURED"
+        ? "Demo email service is not configured"
+        : "Unable to send demo request right now",
       HTTP_STATUS.INTERNAL_SERVER_ERROR
     );
   }
