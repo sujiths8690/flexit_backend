@@ -1077,6 +1077,18 @@ const getDeviceConfigByCodeService = async (deviceCode: string) => {
         const transitionSpeedSeconds = (device as any).transitionSpeedSeconds ?? 0.5;
         const interval = (device as any).autoScrollIntervalSeconds ?? 8;
         const displaySettings = deviceDisplaySettings(device, device.business);
+        const serverTime = new Date();
+        const subscriptionExpiresAt =
+            (device.business as any).subscriptionEndsAt ??
+            (device.business as any).subscriptionTrialEndsAt ??
+            null;
+        const subscriptionStatus = String(
+            (device.business as any).subscriptionStatus ?? ""
+        ).trim().toLowerCase();
+        const subscriptionBlocked =
+            ["expired", "inactive", "suspended", "cancelled", "canceled"].includes(subscriptionStatus) ||
+            (subscriptionExpiresAt instanceof Date &&
+                subscriptionExpiresAt.getTime() <= serverTime.getTime());
         const isMediaMode = contentModes.includes("allMedia") || contentModes.includes("media");
         const isOnlyMediaMode = isMediaMode && contentModes.every((mode) => mode === "allMedia" || mode === "media");
         const isComboMode = contentModes.includes("comboOffers");
@@ -1208,6 +1220,9 @@ const getDeviceConfigByCodeService = async (deviceCode: string) => {
             isPaired: true,
             businessName: device.business.name,
             businessLogoUrl: (device.business as any).logoUrl ?? null,
+            subscriptionExpiresAt,
+            subscriptionBlocked,
+            serverTime,
             orientation: (device as any).orientation ?? "normal",
             menuTheme: (device as any).menuTheme ?? "light",
             themeColor: (device as any).themeColor ?? "gold",
