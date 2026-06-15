@@ -1259,6 +1259,23 @@ const getDeviceConfigByCodeService = async (deviceCode: string) => {
     }
 };
 
+const getDevicePairingStatusByCodeService = async (deviceCode: string) => {
+    if (!deviceCode) {
+        throw new Error("DEVICE_CODE_REQUIRED");
+    }
+
+    const normalizedCode = deviceCode.trim().toUpperCase();
+    const device = await prisma.device.findUnique({
+        where: { deviceCode: normalizedCode },
+        select: { id: true, isActive: true }
+    });
+
+    return {
+        deviceCode: normalizedCode,
+        isPaired: device?.isActive === true
+    };
+};
+
 /* ================================
    UPDATE DISPLAY CONFIG
 ================================ */
@@ -1587,6 +1604,7 @@ export {
     getAdminBusinessDeviceOverviewService,
     getAdminDeviceOverviewService,
     getDeviceConfigByCodeService,
+    getDevicePairingStatusByCodeService,
     updateDeviceConfigService,
     deleteDeviceService
 };
