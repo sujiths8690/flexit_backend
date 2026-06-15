@@ -6,6 +6,7 @@ import {
     updateDeviceMetadataByCodeService,
     getAdminBusinessDeviceOverviewService,
     getAdminDeviceOverviewService,
+    getDevicePairingStatusByCodeService,
     updateDeviceConfigService,
     deleteDeviceService
 } from "../../services/device/deviceRegistration.service";
@@ -300,6 +301,35 @@ export const getDeviceConfigController = async (req: Request, res: Response) => 
             res,
             error.message,
             HTTP_STATUS.INTERNAL_SERVER_ERROR
+        );
+    }
+};
+
+export const getDevicePairingStatusController = async (
+    req: Request,
+    res: Response
+) => {
+    try {
+        const deviceCode = req.params.deviceCode;
+        if (!deviceCode || typeof deviceCode !== "string") {
+            return errorResponse(
+                res,
+                "Device code is required",
+                HTTP_STATUS.BAD_REQUEST
+            );
+        }
+        const status = await getDevicePairingStatusByCodeService(deviceCode);
+        return successResponse(
+            res,
+            status,
+            "Device pairing status fetched successfully",
+            HTTP_STATUS.OK
+        );
+    } catch (error: any) {
+        return errorResponse(
+            res,
+            error.message,
+            HTTP_STATUS.BAD_REQUEST
         );
     }
 };

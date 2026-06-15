@@ -7,6 +7,7 @@ import {
   getAdminBusinessDeviceOverviewController,
   getAdminDeviceOverviewController,
   getDeviceConfigController,
+  getDevicePairingStatusController,
   updateDeviceConfigController,
   deleteDeviceController,
 } from "../../controllers/device/deviceRegistrtaion.controller";
@@ -16,6 +17,11 @@ import { authenticateAdminToken } from "../../middleware/adminAuth";
 import { allowRoles } from "../../middleware/role";
 
 const router = Router();
+
+router.get(
+  "/:deviceCode/pairing-status",
+  getDevicePairingStatusController
+);
 
 /**
  * Display polling route is public because the device has no user token before pairing.
