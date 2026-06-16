@@ -6,6 +6,7 @@ import {
     updateDeviceMetadataByCodeService,
     getAdminBusinessDeviceOverviewService,
     getAdminDeviceOverviewService,
+    getDeviceConfigByCodeService,
     getDevicePairingStatusByCodeService,
     updateDeviceConfigService,
     deleteDeviceService
@@ -290,10 +291,13 @@ export const getDeviceConfigController = async (req: Request, res: Response) => 
             );
         }
 
-        return errorResponse(
+        const config = await getDeviceConfigByCodeService(deviceCode);
+
+        return successResponse(
             res,
-            "Device config is delivered through the device websocket only",
-            HTTP_STATUS.CONFLICT
+            config,
+            "Device config fetched successfully",
+            HTTP_STATUS.OK
         );
 
     } catch (error: any) {
