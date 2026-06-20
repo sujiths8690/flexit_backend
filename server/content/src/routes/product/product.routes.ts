@@ -4,6 +4,7 @@ import {
   updateProduct,
   getAllProducts,
   getOneProduct,
+  getProductDeleteImpact,
   deleteProduct,
   getProductsByCategory,
 } from "../../controllers/product/product.controller";
@@ -51,6 +52,16 @@ router.get(
 router.get(
   "/category/:categoryId", 
   getProductsByCategory
+);
+
+/**
+ * Check related offers/stars before deleting a product
+ * ADMIN only
+ */
+router.get(
+  "/:productId/delete-impact",
+  allowRoles(Role.ADMIN),
+  getProductDeleteImpact
 );
 
 /**

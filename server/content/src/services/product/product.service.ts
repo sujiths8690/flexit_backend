@@ -268,6 +268,123 @@ const getOneProductService= async(productId:number, businessId:number)=>{
     }
 };
 
+const getProductDeleteImpactService = async (productId: number, businessId: number) => {
+    try {
+        if (!productId) {
+            throw new Error("PRODUCT_ID_NOT_PROVIDED");
+        }
+
+        if (!businessId) {
+            throw new Error("BUSINESS_ID_NOT_PROVIDED");
+        }
+
+        const product = await prisma.product.findFirst({
+            where: {
+                id: productId,
+                businessId,
+                isActive: true
+            },
+            select: {
+                id: true,
+                name: true
+            }
+        });
+
+        if (!product) {
+            throw new Error("PRODUCT_NOT_FOUND");
+        }
+
+        const [discountOffers, freeOffers, comboOffers, todaysStars] = await Promise.all([
+            prisma.offer.findMany({
+                where: {
+                    businessId,
+                    isActive: true,
+                    offerType: "discount",
+                    items: {
+                        some: {
+                            productId
+                        }
+                    }
+                },
+                select: {
+                    id: true,
+                    name: true
+                }
+            }),
+            prisma.offer.findMany({
+                where: {
+                    businessId,
+                    isActive: true,
+                    offerType: "free",
+                    OR: [
+                        { freeProductId: productId },
+                        {
+                            items: {
+                                some: {
+                                    OR: [
+                                        { productId },
+                                        { freeProductId: productId }
+                                    ]
+                                }
+                            }
+                        }
+                    ]
+                },
+                select: {
+                    id: true,
+                    name: true
+                }
+            }),
+            prisma.comboOffer.findMany({
+                where: {
+                    businessId,
+                    isActive: true,
+                    items: {
+                        some: {
+                            productId
+                        }
+                    }
+                },
+                select: {
+                    id: true,
+                    name: true
+                }
+            }),
+            prisma.todaysStar.findMany({
+                where: {
+                    businessId,
+                    productId
+                },
+                select: {
+                    id: true,
+                    starDate: true
+                }
+            })
+        ]);
+
+        return {
+            product,
+            discountOffers,
+            freeOffers,
+            comboOffers,
+            todaysStars,
+            summary: {
+                discountOfferCount: discountOffers.length,
+                freeOfferCount: freeOffers.length,
+                comboOfferCount: comboOffers.length,
+                todaysStarCount: todaysStars.length
+            },
+            hasImpact:
+                discountOffers.length > 0 ||
+                freeOffers.length > 0 ||
+                comboOffers.length > 0 ||
+                todaysStars.length > 0
+        };
+    } catch (error) {
+        throw new Error(`ERROR_FETCHING_PRODUCT_DELETE_IMPACT ${error}`);
+    }
+};
+
 const deleteProductService= async(productId:number, businessId:number, userId:number)=>{
     try{
         if(!productId){
@@ -278,28 +395,142 @@ const deleteProductService= async(productId:number, businessId:number, userId:nu
             throw new Error("BUSINESS_ID_NOT_PROVIDED");
         }
 
-        const deleteProduct= await prisma.product.update({
-            where:{
-                id:productId,
-                businessId
-            },
-            data:{
-                isActive:false,
+        const impact = await getProductDeleteImpactService(productId, businessId);
+        const discountOfferIds = impact.discountOffers.map((offer) => offer.id);
+        const freeOfferIds = impact.freeOffers.map((offer) => offer.id);
+        const comboOfferIds = impact.comboOffers.map((offer) => offer.id);
+
+        const result = await prisma.$transaction(async (tx) => {
+            if (discountOfferIds.length > 0) {
+                await tx.offerItem.deleteMany({
+                    where: {
+                        offerId: {
+                            in: discountOfferIds
+                        },
+                        productId
+                    }
+                });
+
+                const emptyDiscountOffers = await tx.offer.findMany({
+                    where: {
+                        id: {
+                            in: discountOfferIds
+                        },
+                        businessId,
+                        isActive: true,
+                        items: {
+                            none: {}
+                        }
+                    },
+                    select: {
+                        id: true
+                    }
+                });
+
+                const emptyDiscountOfferIds = emptyDiscountOffers.map((offer) => offer.id);
+                if (emptyDiscountOfferIds.length > 0) {
+                    await tx.offer.updateMany({
+                        where: {
+                            id: {
+                                in: emptyDiscountOfferIds
+                            },
+                            businessId
+                        },
+                        data: {
+                            isActive: false
+                        }
+                    });
+                }
             }
+
+            if (freeOfferIds.length > 0) {
+                await tx.offer.updateMany({
+                    where: {
+                        id: {
+                            in: freeOfferIds
+                        },
+                        businessId
+                    },
+                    data: {
+                        isActive: false
+                    }
+                });
+            }
+
+            if (comboOfferIds.length > 0) {
+                await tx.comboOffer.updateMany({
+                    where: {
+                        id: {
+                            in: comboOfferIds
+                        },
+                        businessId
+                    },
+                    data: {
+                        isActive: false
+                    }
+                });
+            }
+
+            await tx.todaysStar.deleteMany({
+                where: {
+                    businessId,
+                    productId
+                }
+            });
+
+            const deleteProduct= await tx.product.update({
+                where:{
+                    id:productId,
+                    businessId
+                },
+                data:{
+                    isActive:false,
+                }
+            });
+
+            return {
+                deleteProduct
+            };
         });
 
         logActivity(
             userId,
             businessId,
             "PRODUCT_DELETED",
-            `Deleted product ${deleteProduct.name} with id ${deleteProduct.id}`
+            `Deleted product ${result.deleteProduct.name} with id ${result.deleteProduct.id}`
         )
 
         sendRealtimeUpdate(
             businessId,
             "DEVICE_DELETED",
-            deleteProduct
+            result.deleteProduct
         );
+        sendRealtimeUpdate(
+            businessId,
+            "PRODUCT_DELETED",
+            result.deleteProduct
+        );
+        if (impact.discountOffers.length > 0 || impact.freeOffers.length > 0) {
+            sendRealtimeUpdate(
+                businessId,
+                "OFFERS_UPDATED",
+                { productId, removed: impact.discountOffers, deleted: impact.freeOffers }
+            );
+        }
+        if (impact.comboOffers.length > 0) {
+            sendRealtimeUpdate(
+                businessId,
+                "COMBO_UPDATED",
+                { productId, deleted: impact.comboOffers }
+            );
+        }
+        if (impact.todaysStars.length > 0) {
+            sendRealtimeUpdate(
+                businessId,
+                "TODAYS_STAR_UPDATED",
+                { productId, deleted: impact.todaysStars }
+            );
+        }
         void invalidateMenuContentOverviewCache(businessId);
 
         void broadcastBusinessDisplayConfigs(businessId);
@@ -315,5 +546,6 @@ export{
     getAllProductService,
     getOneProductService,
     deleteProductService,
+    getProductDeleteImpactService,
     getProductsByCategoryService
 }
