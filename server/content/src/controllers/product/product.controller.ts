@@ -7,6 +7,7 @@ import {
     deleteProductService,
     getAllProductService,
     getOneProductService,
+    getProductDeleteImpactService,
     getProductsByCategoryService,
     updateProductService
 } from "../../services/product/product.service";
@@ -238,6 +239,48 @@ export const getOneProduct = async (req: Request, res: Response) => {
         return errorResponse(
             res,
             error.message || "Failed to fetch product",
+            HTTP_STATUS.INTERNAL_SERVER_ERROR
+        );
+    }
+};
+
+
+/* ================================
+   GET DELETE IMPACT
+================================ */
+export const getProductDeleteImpact = async (req: Request, res: Response) => {
+    try {
+        const productId = Number(req.params.productId);
+
+        if (isNaN(productId)) {
+            return errorResponse(
+                res,
+                "Invalid product id",
+                HTTP_STATUS.BAD_REQUEST
+            );
+        }
+
+        const impact = await getProductDeleteImpactService(
+            productId,
+            req.user!.businessId
+        );
+
+        return successResponse(
+            res,
+            impact,
+            "Product delete impact fetched successfully",
+            HTTP_STATUS.OK
+        );
+
+    } catch (error: any) {
+
+        if (error.message.includes("PRODUCT_NOT_FOUND")) {
+            return errorResponse(res, error.message, HTTP_STATUS.NOT_FOUND);
+        }
+
+        return errorResponse(
+            res,
+            error.message || "Failed to fetch product delete impact",
             HTTP_STATUS.INTERNAL_SERVER_ERROR
         );
     }
