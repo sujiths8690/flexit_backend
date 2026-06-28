@@ -1,5 +1,6 @@
 require("dotenv").config();
 const express= require("express");
+const path = require("path");
 const cors = require("cors");
 const helmet = require("helmet");
 const { createProxyMiddleware } = require("http-proxy-middleware");
@@ -18,6 +19,7 @@ const userActivityTarget =
   process.env.USER_ACTIVITY_SERVICE_URL || "http://user-activity:3004";
 const requestAnalyticsSecret =
   process.env.REQUEST_ANALYTICS_INTERNAL_SECRET || "flexit-request-analytics-secret";
+const appUpdatesDir = process.env.APP_UPDATES_DIR || path.join(__dirname, "app-updates");
 
 if (
   process.env.NODE_ENV === "production" &&
@@ -84,6 +86,22 @@ app.use((req, res, next) => {
   console.log("🔥 Incoming:", req.method, req.url);
   next();
 });
+
+app.use(
+  "/app-updates",
+  express.static(appUpdatesDir, {
+    fallthrough: false,
+    setHeaders(res, filePath) {
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      if (filePath.endsWith(".json")) {
+        res.setHeader("Cache-Control", "no-store");
+      } else if (filePath.endsWith(".apk")) {
+        res.setHeader("Cache-Control", "private, max-age=300");
+        res.setHeader("Content-Type", "application/vnd.android.package-archive");
+      }
+    },
+  })
+);
 
 app.use(
   "/api/admin-auth",

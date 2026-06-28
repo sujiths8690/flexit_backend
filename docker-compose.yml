@@ -24,11 +24,14 @@ services:
       NODE_ENV: production
       CORS_ORIGINS: ${CORS_ORIGINS:-https://flexit.online,https://www.flexit.online}
       REQUEST_ANALYTICS_INTERNAL_SECRET: ${REQUEST_ANALYTICS_INTERNAL_SECRET:?REQUEST_ANALYTICS_INTERNAL_SECRET is required}
+      APP_UPDATES_DIR: /app/app-updates
     depends_on:
       - auth
       - admin-auth
       - content
       - user-activity
+    volumes:
+      - ./server/gateway/app-updates:/app/app-updates
 
   admin-auth:
     build: ./server/adminAuth

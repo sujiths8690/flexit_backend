@@ -64,3 +64,4 @@ temp/
 
 # Runtime user uploads
 server/content/uploads/
+server/gateway/app-updates/*.apk
